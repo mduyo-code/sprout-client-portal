@@ -1,0 +1,2079 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Sprout Billings Portal</title>
+<style>
+/* ---------- Tokens ---------- */
+:root{
+  --bg:#F5F7F0;
+  --surface:#FFFFFF;
+  --surface-2:#EDF1E6;
+  --surface-3:#E1E9D6;
+  --border:#DBE3D0;
+  --border-soft:#E7EDDE;
+  --text:#1C2A1E;
+  --text-muted:#5E6E58;
+  --text-faint:#8A9884;
+  --accent:#2E7D4F;
+  --accent-strong:#1F5C39;
+  --accent-soft:#E3F0E6;
+  --on-accent:#FFFFFF;
+  --good:#2E7D4F;
+  --good-soft:#E3F0E6;
+  --warning:#AD701A;
+  --warning-soft:#FBF0DD;
+  --critical:#B23A44;
+  --critical-soft:#FAE4E5;
+  --info:#3868A6;
+  --info-soft:#E7EEF6;
+  --neutral:#5E6E58;
+  --neutral-soft:#EAEEE3;
+  --shadow:0 1px 2px rgba(28,42,30,.06),0 6px 16px rgba(28,42,30,.06);
+  --radius:10px;
+  --radius-sm:7px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10140E;
+    --surface:#161C13;
+    --surface-2:#1C2417;
+    --surface-3:#242F1D;
+    --border:#2B3524;
+    --border-soft:#232C1C;
+    --text:#E7EDE0;
+    --text-muted:#9FAE96;
+    --text-faint:#6E7D67;
+    --accent:#5FBE85;
+    --accent-strong:#8AD6A6;
+    --accent-soft:#1E3325;
+    --on-accent:#0E170F;
+    --good:#5FBE85;
+    --good-soft:#1E3325;
+    --warning:#E2A749;
+    --warning-soft:#3A2C13;
+    --critical:#E37D84;
+    --critical-soft:#3B1C1E;
+    --info:#7FAEDD;
+    --info-soft:#182A3D;
+    --neutral:#9FAE96;
+    --neutral-soft:#1F261A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10140E;
+  --surface:#161C13;
+  --surface-2:#1C2417;
+  --surface-3:#242F1D;
+  --border:#2B3524;
+  --border-soft:#232C1C;
+  --text:#E7EDE0;
+  --text-muted:#9FAE96;
+  --text-faint:#6E7D67;
+  --accent:#5FBE85;
+  --accent-strong:#8AD6A6;
+  --accent-soft:#1E3325;
+  --on-accent:#0E170F;
+  --good:#5FBE85;
+  --good-soft:#1E3325;
+  --warning:#E2A749;
+  --warning-soft:#3A2C13;
+  --critical:#E37D84;
+  --critical-soft:#3B1C1E;
+  --info:#7FAEDD;
+  --info-soft:#182A3D;
+  --neutral:#9FAE96;
+  --neutral-soft:#1F261A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+
+/* ---------- Reset ---------- */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans',-apple-system,'Segoe UI',sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{margin:0;text-wrap:balance;font-family:'IBM Plex Sans',sans-serif;}
+p{margin:0;}
+button{font-family:inherit;}
+a{color:var(--accent-strong);}
+.mono{font-family:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;font-variant-numeric:tabular-nums;}
+.num{font-variant-numeric:tabular-nums;}
+::selection{background:var(--accent-soft);}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important;}}
+
+/* ---------- App shell ---------- */
+#app{display:flex;min-height:100vh;}
+.sidebar{
+  width:248px;flex:0 0 248px;background:var(--surface-2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 14px;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 6px;}
+.brand-mark{width:26px;height:26px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto;}
+.brand-name{font-weight:700;font-size:15px;letter-spacing:-.01em;}
+.brand-sub{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;margin-top:-1px;}
+
+.role-switch{display:flex;flex-direction:column;gap:4px;}
+.role-switch-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);padding:0 6px;margin-bottom:2px;}
+.role-btn{
+  display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--radius-sm);border:1px solid transparent;
+  background:transparent;color:var(--text-muted);cursor:pointer;text-align:left;font-size:13px;font-weight:500;width:100%;
+}
+.role-btn:hover{background:var(--surface-3);}
+.role-btn.active{background:var(--surface);border-color:var(--border);color:var(--text);box-shadow:var(--shadow);}
+.role-btn .dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:0 0 auto;}
+.role-btn.active .dot{background:var(--accent);}
+
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:2px;}
+.nav-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);padding:8px 6px 2px;}
+.nav-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);
+  color:var(--text-muted);cursor:pointer;font-size:13.5px;font-weight:500;border:none;background:none;width:100%;text-align:left;
+}
+.nav-item:hover{background:var(--surface-3);color:var(--text);}
+.nav-item.active{background:var(--accent);color:var(--on-accent);}
+.nav-item .badge-count{font-size:11px;padding:1px 6px;border-radius:99px;background:var(--surface);color:var(--text-muted);font-family:'IBM Plex Mono';}
+.nav-item.active .badge-count{background:rgba(255,255,255,.25);color:var(--on-accent);}
+
+.sidebar-footer{margin-top:auto;padding:10px 6px;border-top:1px solid var(--border);font-size:11px;color:var(--text-faint);line-height:1.5;}
+
+.main-col{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{
+  position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:16px 28px;gap:16px;backdrop-filter:blur(6px);
+}
+.topbar-title{display:flex;flex-direction:column;gap:2px;}
+.topbar-title h1{font-size:19px;font-weight:650;}
+.topbar-sub{font-size:12px;color:var(--text-faint);}
+.topbar-right{display:flex;align-items:center;gap:14px;}
+.sync-pill{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);padding:5px 10px;border-radius:99px;}
+.sync-pill .live-dot{width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px var(--good-soft);}
+.persona{display:flex;align-items:center;gap:9px;position:relative;}
+.persona-avatar{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent-strong);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:0 0 auto;}
+.persona-text{display:flex;flex-direction:column;line-height:1.25;}
+.persona-name{font-size:12.5px;font-weight:600;}
+.persona-role{font-size:10.5px;color:var(--text-faint);}
+.persona-select{border:none;background:transparent;font-size:11px;color:var(--text-faint);cursor:pointer;font-family:inherit;padding:0;}
+.bell-btn{position:relative;width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-muted);}
+.bell-btn:hover{background:var(--surface-2);}
+.bell-dot{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--critical);border:1.5px solid var(--bg);}
+
+.main{padding:24px 28px 60px;max-width:1180px;width:100%;margin:0 auto;}
+.view-fade{animation:fadeIn .18s ease-out;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+
+/* ---------- Building blocks ---------- */
+.banner{
+  display:flex;gap:12px;align-items:flex-start;background:var(--accent-soft);border:1px solid var(--border);
+  border-radius:var(--radius);padding:13px 16px;margin-bottom:22px;font-size:13px;color:var(--text);
+}
+.banner b{color:var(--accent-strong);}
+.banner-close{margin-left:auto;background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:15px;padding:0 2px;flex:0 0 auto;}
+
+.section{margin-bottom:30px;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;gap:10px;}
+.section-head h2{font-size:15px;font-weight:650;}
+.section-head .hint{font-size:12px;color:var(--text-faint);}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);}
+.tile-label{font-size:11.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+.tile-value{font-size:24px;font-weight:650;font-family:'IBM Plex Mono';letter-spacing:-.01em;}
+.tile-sub{font-size:12px;color:var(--text-muted);margin-top:5px;}
+.tile.accent-critical .tile-value{color:var(--critical);}
+.tile.accent-warning .tile-value{color:var(--warning);}
+.tile.accent-good .tile-value{color:var(--good);}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+.card-pad{padding:16px 18px;}
+
+.btn{
+  display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:9px 15px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;font-family:inherit;
+}
+.btn:hover{background:var(--surface-2);}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
+.btn-primary:hover{background:var(--accent-strong);border-color:var(--accent-strong);}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:7px;}
+.btn-ghost{background:none;border-color:transparent;color:var(--text-muted);}
+.btn-ghost:hover{background:var(--surface-2);color:var(--text);}
+.btn-danger-text{color:var(--critical);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+.quick-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+.table-wrap{overflow-x:auto;}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);font-weight:600;padding:0 14px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:11px 14px;border-bottom:1px solid var(--border-soft);vertical-align:middle;white-space:nowrap;}
+tr.clickable{cursor:pointer;}
+tr.clickable:hover td{background:var(--surface-2);}
+td.wrap{white-space:normal;}
+.row-title{font-weight:600;color:var(--text);}
+.row-sub{font-size:11.5px;color:var(--text-faint);margin-top:1px;}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;}
+.pill-good{background:var(--good-soft);color:var(--good);}
+.pill-warning{background:var(--warning-soft);color:var(--warning);}
+.pill-critical{background:var(--critical-soft);color:var(--critical);}
+.pill-info{background:var(--info-soft);color:var(--info);}
+.pill-neutral{background:var(--neutral-soft);color:var(--neutral);}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+.empty{padding:34px 10px;text-align:center;color:var(--text-faint);font-size:13px;}
+
+/* filters */
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;}
+select,input[type=text],input[type=number],input[type=date],textarea{
+  font-family:inherit;font-size:13px;padding:8px 10px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);
+}
+select:focus,input:focus,textarea:focus{border-color:var(--accent);}
+textarea{resize:vertical;min-height:70px;}
+.search-box{position:relative;}
+.search-box input{padding-left:30px;min-width:200px;}
+.search-box::before{content:"⌕";position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-faint);}
+
+/* forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-grid .full{grid-column:1/-1;}
+.form-field{display:flex;flex-direction:column;gap:6px;}
+.form-field label{font-size:12.5px;font-weight:600;color:var(--text);}
+.form-field .opt{font-weight:400;color:var(--text-faint);}
+.form-hint{font-size:11.5px;color:var(--text-faint);}
+.check-row{display:flex;align-items:center;gap:8px;font-size:13px;}
+.check-row input{width:15px;height:15px;}
+.file-drop{border:1.5px dashed var(--border);border-radius:8px;padding:14px;font-size:12.5px;color:var(--text-muted);text-align:center;cursor:pointer;background:var(--surface-2);}
+.file-drop:hover{border-color:var(--accent);}
+.file-drop.has-file{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-strong);border-style:solid;}
+.invoice-check-list{display:flex;flex-direction:column;gap:7px;max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:9px;}
+.invoice-check-list label{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+
+/* modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,20,12,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.modal{background:var(--surface);border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+.modal.modal-wide{max-width:760px;}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);}
+.modal-head h3{font-size:16px;}
+.modal-head p{font-size:12px;color:var(--text-faint);margin-top:3px;}
+.modal-close{background:none;border:none;font-size:17px;color:var(--text-faint);cursor:pointer;}
+.modal-body{padding:20px 22px;display:flex;flex-direction:column;gap:16px;}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:9px;}
+
+/* ticket detail */
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+.detail-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:16px 0;}
+.detail-meta-item .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin-bottom:3px;}
+.detail-meta-item .v{font-size:13.5px;font-weight:600;}
+.timeline{display:flex;flex-direction:column;gap:0;margin-top:4px;}
+.timeline-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-soft);}
+.timeline-item:last-child{border-bottom:none;}
+.timeline-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);margin-top:5px;flex:0 0 auto;}
+.timeline-body b{font-size:13px;}
+.timeline-time{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+.timeline-note{font-size:13px;color:var(--text-muted);margin-top:4px;}
+.timeline-note.internal{background:var(--warning-soft);color:var(--warning);padding:6px 9px;border-radius:6px;display:inline-block;}
+
+/* chart bits */
+.bars{display:flex;align-items:flex-end;gap:10px;height:120px;padding-top:16px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;}
+.bar-val{font-size:11px;font-family:'IBM Plex Mono';color:var(--text-muted);}
+.bar-shape{width:100%;max-width:34px;background:var(--accent);border-radius:4px 4px 2px 2px;min-height:3px;}
+.bar-label{font-size:10.5px;color:var(--text-faint);margin-top:2px;}
+.hbar-row{display:flex;align-items:center;gap:10px;padding:7px 0;}
+.hbar-label{width:150px;flex:0 0 auto;font-size:12.5px;color:var(--text-muted);}
+.hbar-track{flex:1;background:var(--surface-2);border-radius:5px;height:10px;overflow:hidden;}
+.hbar-fill{height:100%;background:var(--accent);border-radius:5px;}
+.hbar-val{width:34px;flex:0 0 auto;text-align:right;font-size:12px;font-family:'IBM Plex Mono';color:var(--text-muted);}
+
+/* KPI / performance reporting */
+.kpi-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;padding:2px;background:var(--surface-2);gap:2px;}
+.seg-btn{border:none;background:transparent;padding:6px 12px;font-size:12.5px;font-weight:600;border-radius:6px;color:var(--text-muted);cursor:pointer;font-family:inherit;}
+.seg-btn:hover{color:var(--text);}
+.seg-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow);}
+.kpi-legend{display:flex;gap:16px;font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+.kpi-legend-item{display:flex;align-items:center;gap:6px;}
+.kpi-legend-dot{width:9px;height:9px;border-radius:2.5px;flex:0 0 auto;}
+.gbars{display:flex;align-items:flex-end;gap:16px;height:150px;padding-top:16px;overflow-x:auto;}
+.gbar-col{flex:0 0 auto;min-width:30px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;}
+.gbar-pair{display:flex;align-items:flex-end;gap:3px;height:100%;}
+.gbar-shape{width:11px;border-radius:3px 3px 1px 1px;min-height:2px;}
+.gbar-label{font-size:10px;color:var(--text-faint);margin-top:2px;white-space:nowrap;}
+.kpi-team-head{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;}
+.kpi-team-head h3{font-size:13px;font-weight:650;}
+tr.kpi-total td{font-weight:700;background:var(--surface-2);border-top:2px solid var(--border);}
+
+.rep-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-soft);}
+.rep-row:last-child{border-bottom:none;}
+.rep-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:0 0 auto;}
+.rep-info{width:150px;flex:0 0 auto;}
+.rep-name{font-weight:600;font-size:13px;}
+.rep-sub{font-size:11px;color:var(--text-faint);}
+.rep-bar-wrap{flex:1;}
+.rep-flags{display:flex;gap:6px;flex:0 0 auto;}
+
+.notif-list{display:flex;flex-direction:column;}
+.notif-item{display:flex;gap:11px;padding:13px 4px;border-bottom:1px solid var(--border-soft);}
+.notif-item:last-child{border-bottom:none;}
+.notif-icon{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto;}
+.notif-item.unread{background:var(--accent-soft);border-radius:8px;}
+.notif-text{font-size:13px;}
+.notif-time{font-size:11px;color:var(--text-faint);margin-top:2px;}
+
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:12px 18px;border-radius:9px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;display:flex;align-items:center;gap:9px;max-width:340px;}
+:root[data-theme="dark"] .toast, @media (prefers-color-scheme:dark){.toast{}}
+.toast-dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 auto;}
+
+.two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;}
+@media (max-width:920px){.two-col{grid-template-columns:1fr;} .form-grid{grid-template-columns:1fr;} .sidebar{width:210px;flex-basis:210px;}}
+@media (max-width:680px){.sidebar{display:none;} .main{padding:18px 14px 50px;} .topbar{padding:12px 16px;}}
+
+.type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.type-card{border:1.5px solid var(--border);border-radius:9px;padding:12px;cursor:pointer;background:var(--surface);}
+.type-card:hover{border-color:var(--accent);}
+.type-card.selected{border-color:var(--accent);background:var(--accent-soft);}
+.type-card .ti{font-size:18px;margin-bottom:5px;}
+.type-card .tn{font-weight:600;font-size:12.5px;}
+.type-card .td{font-size:11px;color:var(--text-faint);margin-top:2px;}
+
+.internal-note{background:var(--warning-soft);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text);}
+.internal-note b{color:var(--warning);}
+
+/* document preview (PDF / CSV / receipt viewer) */
+.doc-preview-wrap{background:var(--surface-2);padding:18px;border-radius:10px;}
+.doc-sheet{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px 26px;box-shadow:var(--shadow);}
+.doc-head{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:2px solid var(--border);margin-bottom:16px;gap:12px;}
+.doc-brand{font-weight:700;font-size:15px;}
+.doc-brand-sub{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+.doc-head-right{text-align:right;flex:0 0 auto;}
+.doc-head-right .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);}
+.doc-head-right .v{font-weight:600;}
+.doc-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-bottom:18px;}
+.doc-meta .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin-bottom:3px;}
+.doc-meta .v{font-size:13px;font-weight:600;}
+.doc-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:2px;}
+.doc-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);padding:0 8px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.doc-table td{padding:8px 8px;border-bottom:1px solid var(--border-soft);white-space:nowrap;}
+.doc-table tfoot td{font-weight:700;border-top:2px solid var(--border);border-bottom:none;padding-top:11px;}
+.doc-status{margin-top:16px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+</style>
+
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+/* ============================================================
+   SPROUT BILLINGS PORTAL — interactive prototype
+   Simulates the Client / Finance Rep / Finance Team Lead / CSM-Sales
+   experiences described in the Billings & Collections project design.
+   All data is seeded in-memory for this demo session.
+   ============================================================ */
+
+const NOW = new Date();
+function d(offsetDays, offsetHours){
+  const dt = new Date(NOW.getTime());
+  dt.setDate(dt.getDate() + (offsetDays||0));
+  if(offsetHours) dt.setHours(dt.getHours()+offsetHours);
+  return dt;
+}
+function fmtDate(dt){
+  return dt.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtDateShort(dt){
+  return dt.toLocaleDateString('en-PH',{month:'short',day:'numeric'});
+}
+function fmtTime(dt){
+  return dt.toLocaleTimeString('en-PH',{hour:'numeric',minute:'2-digit'});
+}
+function fmtDateTime(dt){ return fmtDate(dt)+', '+fmtTime(dt); }
+function fmtMoney(n){
+  return '₱'+n.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtMoneyShort(n){
+  return '₱'+Math.round(n).toLocaleString('en-PH');
+}
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function relTime(dt){
+  const diffMs = dt.getTime()-NOW.getTime();
+  const mins = Math.round(diffMs/60000);
+  const days = Math.round(diffMs/(60000*60*24));
+  if(Math.abs(mins)<60) return mins===0?'just now':(mins<0?`${-mins}m ago`:`in ${mins}m`);
+  if(Math.abs(days)<1) { const hrs=Math.round(diffMs/3600000); return hrs<0?`${-hrs}h ago`:`in ${hrs}h`; }
+  if(days<0) return `${-days}d ago`;
+  return `in ${days}d`;
+}
+
+/* ---------------- Seed data ---------------- */
+let idSeq = 2232;
+function nextTicketId(){ return 'TCK-'+(idSeq++); }
+
+const REPS = {
+  carlo: {id:'carlo', name:'Carlo Reyes', initials:'CR', team:'lead', role:'Finance Representative'},
+  nina:  {id:'nina',  name:'Nina Abad',   initials:'NA', team:'lead', role:'Finance Representative'},
+};
+const LEAD = {id:'angela', name:'Angela Tan', initials:'AT', role:'Finance Team Lead'};
+const TEAMS = {
+  teamA: {id:'teamA', name:'Finance Team A', lead:'angela', reps:['carlo','nina']},
+};
+const CSMS = {
+  jamie:{id:'jamie', name:'Jamie Suarez', initials:'JS', role:'CSM'},
+  ramon:{id:'ramon', name:'Ramon Cruz', initials:'RC', role:'CSM'},
+  pat:{id:'pat', name:'Pat Villanueva', initials:'PV', role:'Sales Rep'},
+  dennis:{id:'dennis', name:'Dennis Ong', initials:'DO', role:'Sales Rep'},
+};
+
+const CLIENTS = {
+  meridian: {id:'meridian', name:'Meridian BPO Solutions Inc.', tier:'Enterprise', pic:'carlo', csm:'jamie', sales:'pat'},
+  bluewave: {id:'bluewave', name:'BlueWave Contact Center Corp.', tier:'Growth', pic:'carlo', csm:'jamie', sales:'dennis'},
+  cebu:     {id:'cebu', name:'Cebu Shoreline BPO Inc.', tier:'Growth', pic:'carlo', csm:'ramon', sales:'pat'},
+  solid:    {id:'solid', name:'Solid Foundations Realty Group', tier:'Enterprise', pic:'nina', csm:'jamie', sales:'pat'},
+  northgate:{id:'northgate', name:'Northgate Logistics Phils. Inc.', tier:'Growth', pic:'nina', csm:'ramon', sales:'dennis'},
+  davao:    {id:'davao', name:'Davao Fresh Exports Co.', tier:'Standard', pic:'nina', csm:'jamie', sales:'dennis'},
+};
+
+const CLIENT_USER = {name:'Ana Lim', role:'AP Specialist', clientId:'meridian'};
+
+// Personal access links — each stakeholder gets a URL that opens straight
+// into their own view, so the prototype can be shared per-person.
+const USER_LINKS = [
+  {key:'ana',    name:'Ana Lim',          org:'Meridian BPO Solutions Inc.', roleLabel:'Client User',          hash:'role=client'},
+  {key:'carlo',  name:'Carlo Reyes',      org:'Finance Team A',              roleLabel:'Finance Representative',hash:'role=rep&rep=carlo'},
+  {key:'nina',   name:'Nina Abad',        org:'Finance Team A',              roleLabel:'Finance Representative',hash:'role=rep&rep=nina'},
+  {key:'angela', name:'Angela Tan',       org:'Finance Team A',              roleLabel:'Finance Team Lead',     hash:'role=lead'},
+  {key:'jamie',  name:'Jamie Suarez',     org:'Accounts',                    roleLabel:'CSM',                   hash:'role=csm&csm=jamie'},
+  {key:'ramon',  name:'Ramon Cruz',       org:'Accounts',                    roleLabel:'CSM',                   hash:'role=csm&csm=ramon'},
+  {key:'pat',    name:'Pat Villanueva',   org:'Accounts',                    roleLabel:'Sales Rep',             hash:'role=csm&csm=pat'},
+  {key:'dennis', name:'Dennis Ong',       org:'Accounts',                    roleLabel:'Sales Rep',             hash:'role=csm&csm=dennis'},
+];
+
+// Meridian invoices — the client we log in as
+const INVOICES = [
+  {id:'INV-10160', clientId:'meridian', period:'Apr 2026', amount:468900, issued:d(-110), due:d(-80), status:'Paid', headcount:true, paidOn:d(-78), receipt:'RCPT-5510'},
+  {id:'INV-10190', clientId:'meridian', period:'May 2026', amount:470100, issued:d(-80), due:d(-50), status:'Paid', headcount:true, paidOn:d(-48), receipt:'RCPT-5544'},
+  {id:'INV-10212', clientId:'meridian', period:'Jun 2026', amount:476800, issued:d(-50), due:d(-20), status:'Paid', headcount:true, paidOn:d(-19), receipt:'RCPT-5581'},
+  {id:'INV-10231', clientId:'meridian', period:'Jul 2026', amount:482300, issued:d(-22), due:d(-5), status:'Overdue', headcount:true},
+  {id:'INV-10255', clientId:'meridian', period:'Aug 2026', amount:495750, issued:d(-6), due:d(9), status:'Open', headcount:true},
+];
+
+const SLA_DAYS = {dispute:3, service_invoice:2, headcount:2, proof_of_payment:1, general_inquiry:2};
+const TYPE_META = {
+  dispute:{label:'Invoice Dispute', icon:'⚖️'},
+  service_invoice:{label:'Service Invoice Request', icon:'🧾'},
+  headcount:{label:'Headcount Request', icon:'👥'},
+  proof_of_payment:{label:'Proof of Payment', icon:'💳'},
+  general_inquiry:{label:'General Billing Inquiry', icon:'✉️'},
+};
+
+let TICKETS = [
+  mkTicket({idOffset:-2, type:'dispute', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'In Progress',
+    subject:'Disputed headcount line item on INV-10231', relatedInvoice:'INV-10231',
+    reason:'Incorrect headcount', amount:'₱18,235.00',
+    details:'August service invoice shows 3 additional agents not on our approved seat roster. Requesting a review against the signed headcount backup before we remit payment.',
+    attachments:['dispute-support.pdf','approved-roster-aug2026.xlsx'],
+    comments:[{author:'Carlo Reyes', role:'pic', at:d(-1,-3), text:'Pulled the NetSuite headcount backup for July — cross-checking against your approved roster now, will follow up by end of day.'}]}),
+  mkTicket({idOffset:-6, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'Resolved', resolvedOffset:-5,
+    subject:'Proof of payment — INV-10160', relatedInvoice:'INV-10160',
+    bank:'BPI', refNo:'TX-77410', amountPaid:'₱468,900.00', cwt:false,
+    details:'BPI bank transfer for the full amount of INV-10160, no CWT applied.',
+    comments:[{author:'Carlo Reyes', role:'pic', at:d(-5,-2), text:'Reconciled against the bank transfer — matches NetSuite. Marking resolved.'}]}),
+  mkTicket({idOffset:-4, type:'service_invoice', clientId:'bluewave', requester:'Grace Tan', pic:'carlo', status:'Pending Client Info',
+    subject:'Reissue August invoice under new billing entity',
+    reason:'Different billing entity',
+    details:'BlueWave shifted billing to their new legal entity (BlueWave CX Corp.) starting August — requesting the invoice be reissued under the new entity name and TIN.',
+    attachments:['entity-change-request.pdf'],
+    comments:[{author:'Carlo Reyes', role:'pic', at:d(-3,1), text:'Need the updated BIR Form 2303 for the new entity before we can reissue — following up with the client.'}]}),
+  mkTicket({idOffset:0, type:'headcount', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'New',
+    subject:'Clarify headcount count used for August invoice', relatedInvoice:'INV-10255',
+    reason:'Clarification',
+    details:'The headcount CSV for INV-10255 lists 214 billable seats — our internal roster shows 211. Please clarify the 3-seat difference before we process payment.',
+    attachments:['headcount-notes.pdf']}),
+  mkTicket({idOffset:0, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'New',
+    subject:'Proof of payment — INV-10212 balance', relatedInvoice:'INV-10212',
+    bank:'BDO', refNo:'TX-88213', amountPaid:'₱476,800.00', cwt:true,
+    details:'Bank transfer slip attached for the remaining balance on INV-10212.',
+    attachments:['deposit-slip.jpg','BIR-2307.pdf']}),
+  mkTicket({idOffset:-10, type:'dispute', clientId:'cebu', requester:'Miguel Santos', pic:'carlo', status:'Resolved', resolvedOffset:-8,
+    subject:'Rebilled surcharge on June invoice',
+    details:'Questioned a weekend-shift surcharge that wasn’t pre-approved.',
+    comments:[{author:'Carlo Reyes', role:'pic', at:d(-8,0), text:'Surcharge was pre-approved in the March SOW addendum — shared the signed copy with the client, they confirmed resolution.'}]}),
+  mkTicket({idOffset:-5, type:'dispute', clientId:'solid', requester:'Ben Ortiz', pic:'nina', status:'In Progress',
+    subject:'Disagreement on rebilled freight surcharge',
+    details:'Client disputes a freight pass-through surcharge added to their July collections invoice, citing no prior notice.',
+    comments:[{author:'Nina Abad', role:'pic', at:d(-4,2), text:'Escalating internally to confirm whether the surcharge notice went to the right AP contact.'}]}),
+  mkTicket({idOffset:-3, type:'headcount', clientId:'northgate', requester:'Liza Cruz', pic:'nina', status:'Pending Client Info',
+    subject:'Reissue headcount backup — wrong site code',
+    details:'Headcount CSV references the Cebu site code instead of Davao for 40 seats.',
+    comments:[{author:'Nina Abad', role:'pic', at:d(-2,4), text:'Asked the client to confirm the correct site code mapping for the 40 seats in question.'}]}),
+  mkTicket({idOffset:0, type:'general_inquiry', clientId:'northgate', requester:'Liza Cruz', pic:'nina', status:'New',
+    subject:'Question on collection receipt numbering',
+    details:'Client noticed a gap in official receipt numbers between June and July and wants confirmation nothing is missing.'}),
+  mkTicket({idOffset:-8, type:'proof_of_payment', clientId:'solid', requester:'Ben Ortiz', pic:'nina', status:'Resolved', resolvedOffset:-7,
+    subject:'Proof of payment — June collections invoice',
+    details:'Deposit slip for the June collections invoice, CWT withheld and BIR 2307 attached.',
+    comments:[{author:'Nina Abad', role:'pic', at:d(-7,1), text:'2307 matches the withheld amount — reconciled and closed.'}]}),
+  mkTicket({idOffset:0, type:'service_invoice', clientId:'davao', requester:'Carmen Reyes', pic:'nina', status:'New',
+    subject:'Split August invoice across two cost centers',
+    details:'Requesting the August invoice be split 60/40 across the Packing and Cold-storage cost centers for internal allocation.'}),
+  mkTicket({idOffset:-1, type:'dispute', clientId:'davao', requester:'Carmen Reyes', pic:'nina', status:'In Progress',
+    subject:'Minimum billable hours applied incorrectly',
+    details:'Client believes the minimum-billable-hours clause was applied to two agents who exceeded the threshold.',
+    comments:[{author:'Nina Abad', role:'pic', at:d(0,-2), text:'Pulling time-tracking export to verify actual hours logged for the two agents in question.'}]}),
+  mkTicket({idOffset:-7, type:'general_inquiry', clientId:'bluewave', requester:'Grace Tan', pic:'carlo', status:'Resolved', resolvedOffset:-6,
+    subject:'Confirm accepted payment channels',
+    details:'Asked which banks are accepted for direct deposit.',
+    comments:[{author:'Carlo Reyes', role:'pic', at:d(-6,0), text:'Shared the accepted-bank list — client confirmed BPI works for them.'}]}),
+];
+
+function mkTicket(o){
+  const created = d(o.idOffset, -Math.floor(Math.random()*3));
+  const slaDays = SLA_DAYS[o.type];
+  const paused = o.status==='Pending Client Info';
+  return {
+    id: nextTicketId(),
+    type:o.type, clientId:o.clientId, requester:o.requester, pic:o.pic, status:o.status,
+    subject:o.subject, details:o.details, relatedInvoice:o.relatedInvoice||null,
+    reason:o.reason||null, amount:o.amount||null,
+    bank:o.bank||null, refNo:o.refNo||null, amountPaid:o.amountPaid||null, cwt:o.cwt||false, invoicesApplied:o.invoicesApplied||null,
+    createdAt:created,
+    slaDue:new Date(created.getTime()+slaDays*24*3600*1000),
+    resolvedAt:o.resolvedOffset!=null?d(o.resolvedOffset):null,
+    comments:o.comments||[],
+    attachments:o.attachments||(o.type==='proof_of_payment'?['deposit-slip.jpg']:(o.type==='dispute'?['dispute-support.pdf']:[])),
+    reassignedFrom:null,
+  };
+}
+
+let NOTIFICATIONS = [];
+function seedNotifications(){
+  TICKETS.forEach(t=>{
+    NOTIFICATIONS.push({id:'N'+t.id+'a', for:{type:'rep',id:t.pic}, at:t.createdAt,
+      text:`New ${TYPE_META[t.type].label.toLowerCase()} filed by ${CLIENTS[t.clientId].name} — auto-assigned to you.`, read:t.status!=='New', ticketId:t.id});
+    NOTIFICATIONS.push({id:'N'+t.id+'b', for:{type:'lead'}, at:t.createdAt,
+      text:`${CLIENTS[t.clientId].name} filed a ${TYPE_META[t.type].label.toLowerCase()} — routed to ${REPS[t.pic].name}.`, read:t.status!=='New', ticketId:t.id});
+    if(t.status==='Resolved'){
+      NOTIFICATIONS.push({id:'N'+t.id+'c', for:{type:'client',id:t.clientId}, at:t.resolvedAt||t.createdAt,
+        text:`Your request "${t.subject}" was marked Resolved.`, read:true, ticketId:t.id});
+    }
+    if(t.status==='Pending Client Info'){
+      NOTIFICATIONS.push({id:'N'+t.id+'d', for:{type:'client',id:t.clientId}, at:d(-1),
+        text:`${REPS[t.pic].name} needs more information on "${t.subject}".`, read:false, ticketId:t.id});
+    }
+  });
+  NOTIFICATIONS.sort((a,b)=>b.at-a.at);
+}
+seedNotifications();
+
+let INTERNAL_NOTES = [
+  {clientId:'northgate', author:'ramon', at:d(-2), text:'Heads up — Northgate’s AP contact mentioned a re-org next month, may see a new requester on tickets.'},
+];
+
+/* ---------------- Derived helpers ---------------- */
+function ticketsForClient(cid){ return TICKETS.filter(t=>t.clientId===cid).sort((a,b)=>b.createdAt-a.createdAt); }
+function ticketsForRep(rid){ return TICKETS.filter(t=>t.pic===rid).sort((a,b)=>b.createdAt-a.createdAt); }
+function openTickets(list){ return list.filter(t=>t.status!=='Resolved' && t.status!=='Closed'); }
+function slaState(t){
+  if(t.status==='Resolved'||t.status==='Closed') return {label:'N/A', cls:'pill-neutral'};
+  if(t.status==='Pending Client Info') return {label:'Paused', cls:'pill-info'};
+  const msLeft = t.slaDue.getTime()-NOW.getTime();
+  if(msLeft<0) return {label:'Breached', cls:'pill-critical'};
+  if(msLeft < 24*3600*1000) return {label:'At risk', cls:'pill-warning'};
+  return {label:'On track', cls:'pill-good'};
+}
+function statusPill(status){
+  const map = {'New':'pill-info','In Progress':'pill-good','Pending Client Info':'pill-warning','Resolved':'pill-neutral','Closed':'pill-neutral'};
+  return `<span class="pill ${map[status]||'pill-neutral'}"><span class="dot"></span>${status}</span>`;
+}
+function invoicePill(status){
+  const map = {'Open':'pill-info','Overdue':'pill-critical','Paid':'pill-good'};
+  return `<span class="pill ${map[status]}"><span class="dot"></span>${status}</span>`;
+}
+function slaPill(t){ const s=slaState(t); return `<span class="pill ${s.cls}"><span class="dot"></span>${s.label}</span>`; }
+function invoiceById(id){ return INVOICES.find(i=>i.id===id); }
+function repOpenCounts(rid){
+  const list = ticketsForRep(rid);
+  return {
+    total: list.length,
+    New: list.filter(t=>t.status==='New').length,
+    'In Progress': list.filter(t=>t.status==='In Progress').length,
+    'Pending Client Info': list.filter(t=>t.status==='Pending Client Info').length,
+    Resolved: list.filter(t=>t.status==='Resolved').length,
+    breached: openTickets(list).filter(t=>slaState(t).label==='Breached').length,
+    atRisk: openTickets(list).filter(t=>slaState(t).label==='At risk').length,
+    open: openTickets(list).length,
+  };
+}
+
+/* ---------------- App state ---------------- */
+const STATE = {
+  role:'client', view:'dashboard',
+  activeRep:'carlo', activeCsm:'jamie', activeTicket:null,
+  bannerDismissed:false, notifOpen:false,
+  kpi:{mode:'weekly', from:null, to:null, repFilter:'all'},
+};
+
+const NAV = {
+  client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  csm:[{id:'overview',label:'Account Overview',icon:'👁'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+};
+const ROLE_META = {
+  client:{label:'Client Portal', who:()=>CLIENT_USER.name, sub:()=>CLIENT_USER.role+' · '+CLIENTS[CLIENT_USER.clientId].name, initials:'AL'},
+  rep:{label:'Finance Rep', who:()=>REPS[STATE.activeRep].name, sub:()=>'Finance Representative (PIC)', initials:()=>REPS[STATE.activeRep].initials},
+  lead:{label:'Finance Team Lead', who:()=>LEAD.name, sub:()=>'Finance Team Lead', initials:LEAD.initials},
+  csm:{label:'CSM / Sales', who:()=>CSMS[STATE.activeCsm].name, sub:()=>CSMS[STATE.activeCsm].role+' (read-only)', initials:()=>CSMS[STATE.activeCsm].initials},
+};
+
+function setRole(role){ STATE.role=role; STATE.view=NAV[role][0].id; STATE.activeTicket=null; render(); }
+function setView(view){ STATE.view=view; STATE.activeTicket=null; render(); }
+function openTicket(id){ STATE.activeTicket=id; render(); window.scrollTo({top:0}); }
+
+/* ---------------- Personal access links (URL hash routing) ----------------
+   Each stakeholder can be handed a link like #role=rep&rep=carlo that opens
+   the portal straight into their own view — see USER_LINKS above. The hash
+   always mirrors the live state, so "Copy my link" works from anywhere. */
+function applyHashState(){
+  const raw = location.hash.replace(/^#/,'');
+  if(!raw) return;
+  const params = new URLSearchParams(raw);
+  const role = params.get('role');
+  if(role && NAV[role]) STATE.role = role;
+  const rep = params.get('rep'); if(rep && REPS[rep]) STATE.activeRep = rep;
+  const csm = params.get('csm'); if(csm && CSMS[csm]) STATE.activeCsm = csm;
+  const view = params.get('view');
+  STATE.view = (view && NAV[STATE.role].some(n=>n.id===view)) ? view : NAV[STATE.role][0].id;
+  STATE.activeTicket = null;
+}
+function currentHash(){
+  const p = new URLSearchParams();
+  p.set('role', STATE.role);
+  if(STATE.role==='rep') p.set('rep', STATE.activeRep);
+  if(STATE.role==='csm') p.set('csm', STATE.activeCsm);
+  p.set('view', STATE.view);
+  return '#'+p.toString();
+}
+function syncHash(){
+  const h = currentHash();
+  if(location.hash!==h) history.replaceState(null,'',h);
+}
+function linkFor(hashStr){
+  return location.origin+location.pathname+'#'+hashStr;
+}
+function currentUserLink(){
+  const match = USER_LINKS.find(u=>{
+    const up = new URLSearchParams(u.hash);
+    if(up.get('role')!==STATE.role) return false;
+    if(STATE.role==='rep') return up.get('rep')===STATE.activeRep;
+    if(STATE.role==='csm') return up.get('csm')===STATE.activeCsm;
+    return true;
+  });
+  return match ? linkFor(match.hash) : linkFor(currentHash().slice(1));
+}
+
+function copyToClipboard(text){
+  return new Promise((resolve,reject)=>{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(resolve).catch(()=>fallbackCopy(text,resolve,reject));
+    } else {
+      fallbackCopy(text,resolve,reject);
+    }
+  });
+}
+function fallbackCopy(text,resolve,reject){
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    ok?resolve():reject();
+  }catch(e){ reject(e); }
+}
+function copyMyLink(){
+  const url = currentUserLink();
+  const rm = ROLE_META[STATE.role];
+  const who = typeof rm.who==='function'?rm.who():rm.who;
+  copyToClipboard(url).then(()=>showToast(`Link copied — opens as ${who}`)).catch(()=>showLinkFallback(url));
+}
+function copyLinkFor(hashStr, name){
+  copyToClipboard(linkFor(hashStr)).then(()=>showToast(`Link copied for ${name}`)).catch(()=>showLinkFallback(linkFor(hashStr)));
+}
+function showLinkFallback(url){
+  openModal(`
+    <div class="modal-head"><div><h3>Copy this link</h3><p>Clipboard access was blocked — copy it manually.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body"><input type="text" readonly value="${esc(url)}" onclick="this.select()" style="width:100%;"></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
+  `);
+}
+function openShareLinksModal(){
+  openModal(`
+    <div class="modal-head"><div><h3>Personal access links</h3><p>Each stakeholder gets a link that opens straight into their own view — no role switching needed.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="gap:8px;">
+      ${USER_LINKS.map(u=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-soft);">
+          <div>
+            <div class="row-title" style="font-size:13px;">${u.name}</div>
+            <div class="row-sub">${u.roleLabel} · ${u.org}</div>
+          </div>
+          <button class="btn btn-sm" onclick="copyLinkFor('${u.hash}','${u.name.replace(/'/g,"\\'")}')">🔗 Copy link</button>
+        </div>`).join('')}
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Close</button></div>
+  `, 'modal-wide');
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer=null;
+function showToast(msg){
+  const root=document.getElementById('toast-root');
+  root.innerHTML = `<div class="toast"><span class="toast-dot"></span>${esc(msg)}</div>`;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{root.innerHTML='';},3400);
+}
+
+/* ---------------- Modal ---------------- */
+function openModal(html, extraClass){
+  document.getElementById('modal-root').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal ${extraClass||''}">${html}</div></div>`;
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+
+/* ============================================================
+   RENDER: shell
+   ============================================================ */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderSidebar()}
+    <div class="main-col">
+      ${renderTopbar()}
+      <div class="main view-fade" id="main">${renderView()}</div>
+    </div>
+  `;
+  syncHash();
+}
+
+function renderSidebar(){
+  const nav = NAV[STATE.role];
+  const unreadCount = notifsFor(STATE.role).filter(n=>!n.read).length;
+  return `
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🌱</div>
+      <div>
+        <div class="brand-name">Sprout Billings</div>
+        <div class="brand-sub">Portal Prototype</div>
+      </div>
+    </div>
+    <div class="role-switch">
+      <div class="role-switch-label">View as</div>
+      ${['client','rep','lead','csm'].map(r=>`
+        <button class="role-btn ${STATE.role===r?'active':''}" onclick="setRole('${r}')">
+          <span class="dot"></span>${ROLE_META[r].label}
+        </button>`).join('')}
+    </div>
+    <div class="nav">
+      <div class="nav-label">${ROLE_META[STATE.role].label}</div>
+      ${nav.map(item=>{
+        let count='';
+        if(item.id==='notifications' && unreadCount>0) count = `<span class="badge-count">${unreadCount}</span>`;
+        if(item.id==='queue') count = `<span class="badge-count">${openTickets(ticketsForRep(STATE.activeRep)).length}</span>`;
+        if(item.id==='escalations'){ const n=allEscalations().length; if(n>0) count=`<span class="badge-count">${n}</span>`; }
+        return `<button class="nav-item ${STATE.view===item.id?'active':''}" onclick="setView('${item.id}')">
+          <span>${item.icon} &nbsp;${item.label}</span>${count}
+        </button>`;
+      }).join('')}
+    </div>
+    <button class="btn btn-sm" style="margin:0 6px;justify-content:center;" onclick="openShareLinksModal()">🔗 Share access links</button>
+    <div class="sidebar-footer">
+      Based on <i>Sprout Client Portal — Billings &amp; Collections Module</i>, Draft v1.0.<br>
+      Data shown is simulated for review purposes.
+    </div>
+  </div>`;
+}
+
+function renderTopbar(){
+  const titles = {
+    dashboard:'Dashboard', invoices:'Invoices', requests:'Disputes & Requests', payments:'Payments & Collections',
+    queue:'My Queue', kpi:'My Performance', team:'Team Monitoring Dashboard', escalations:'SLA Escalations', reports:'Reports & KPIs',
+    overview:'Account Overview', notifications:'Notifications',
+  };
+  let title = titles[STATE.view]||'';
+  if(STATE.role==='rep' && STATE.activeTicket) title = 'Ticket detail';
+  const rm = ROLE_META[STATE.role];
+  const who = typeof rm.who==='function'?rm.who():rm.who;
+  const sub = typeof rm.sub==='function'?rm.sub():rm.sub;
+  const initials = typeof rm.initials==='function'?rm.initials():rm.initials;
+
+  let switcher='';
+  if(STATE.role==='rep'){
+    switcher = `<select class="persona-select" style="font-size:12px;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:4px 6px;" onchange="STATE.activeRep=this.value;STATE.activeTicket=null;render()">
+      ${Object.values(REPS).map(r=>`<option value="${r.id}" ${STATE.activeRep===r.id?'selected':''}>${r.name}</option>`).join('')}
+    </select>`;
+  } else if(STATE.role==='csm'){
+    switcher = `<select class="persona-select" style="font-size:12px;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:4px 6px;" onchange="STATE.activeCsm=this.value;render()">
+      ${Object.values(CSMS).map(c=>`<option value="${c.id}" ${STATE.activeCsm===c.id?'selected':''}>${c.name} (${c.role})</option>`).join('')}
+    </select>`;
+  }
+
+  return `
+  <div class="topbar">
+    <div class="topbar-title">
+      <h1>${title}</h1>
+      <div class="topbar-sub">${sub}</div>
+    </div>
+    <div class="topbar-right">
+      ${switcher}
+      <div class="sync-pill"><span class="live-dot"></span>NetSuite data synced ${fmtTime(d(0,-Math.floor(Math.random()*2)-0))}</div>
+      <button class="bell-btn" onclick="copyMyLink()" title="Copy a personal link that opens straight into this view">🔗</button>
+      <button class="bell-btn" onclick="setView('notifications')" title="Notifications">🔔${notifsFor(STATE.role).some(n=>!n.read)?'<span class="bell-dot"></span>':''}</button>
+      <div class="persona">
+        <div class="persona-avatar">${initials}</div>
+        <div class="persona-text"><span class="persona-name">${who}</span><span class="persona-role">${STATE.role==='rep'?REPS[STATE.activeRep].role:(STATE.role==='csm'?CSMS[STATE.activeCsm].role:(STATE.role==='lead'?'Finance Team Lead':'Client User'))}</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function notifsFor(role){
+  if(role==='client') return NOTIFICATIONS.filter(n=>n.for.type==='client' && n.for.id===CLIENT_USER.clientId);
+  if(role==='rep') return NOTIFICATIONS.filter(n=>n.for.type==='rep' && n.for.id===STATE.activeRep);
+  if(role==='lead') return NOTIFICATIONS.filter(n=>n.for.type==='lead');
+  if(role==='csm') return [];
+  return [];
+}
+
+function renderView(){
+  if(STATE.role==='client'){
+    if(STATE.activeTicket) return viewTicketDetail(STATE.activeTicket, 'client');
+    if(STATE.view==='dashboard') return viewClientDashboard();
+    if(STATE.view==='invoices') return viewClientInvoices();
+    if(STATE.view==='requests') return viewClientRequests();
+    if(STATE.view==='payments') return viewClientPayments();
+    if(STATE.view==='notifications') return viewNotifications('client');
+  }
+  if(STATE.role==='rep'){
+    if(STATE.activeTicket) return viewTicketDetail(STATE.activeTicket, 'rep');
+    if(STATE.view==='queue') return viewRepQueue();
+    if(STATE.view==='kpi') return viewRepKPI();
+    if(STATE.view==='notifications') return viewNotifications('rep');
+  }
+  if(STATE.role==='lead'){
+    if(STATE.activeTicket) return viewTicketDetail(STATE.activeTicket, 'lead');
+    if(STATE.view==='team') return viewLeadTeam();
+    if(STATE.view==='escalations') return viewLeadEscalations();
+    if(STATE.view==='reports') return viewLeadReports();
+    if(STATE.view==='notifications') return viewNotifications('lead');
+  }
+  if(STATE.role==='csm'){
+    if(STATE.view==='overview') return viewCsmOverview();
+    if(STATE.view==='notifications') return viewNotifications('csm');
+  }
+  return '<div class="empty">Nothing here yet.</div>';
+}
+
+/* ============================================================
+   CLIENT VIEWS
+   ============================================================ */
+function introBanner(text){
+  if(STATE.bannerDismissed) return '';
+  return `<div class="banner"><span>🌱</span><div>${text}</div><button class="banner-close" onclick="STATE.bannerDismissed=true;render()">✕</button></div>`;
+}
+
+function viewClientDashboard(){
+  const myInvoices = INVOICES;
+  const openBalance = myInvoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.amount,0);
+  const overdue = myInvoices.filter(i=>i.status==='Overdue');
+  const upcoming = myInvoices.filter(i=>i.status==='Open').sort((a,b)=>a.due-b.due)[0];
+  const myTickets = ticketsForClient(CLIENT_USER.clientId);
+  const openReqs = openTickets(myTickets);
+  const client = CLIENTS[CLIENT_USER.clientId];
+
+  return `
+  ${introBanner(`This prototype simulates the <b>Client Portal</b> described in the design doc. Use <b>View as</b> on the left to see the Finance Rep, Team Lead, and CSM/Sales perspectives on the same data.`)}
+  <div class="section">
+    <div class="section-head"><h2>Account snapshot</h2><span class="hint">${client.name} · ${client.tier} plan</span></div>
+    <div class="tiles">
+      <div class="tile ${openBalance>0?'accent-warning':''}"><div class="tile-label">Open balance</div><div class="tile-value">${fmtMoneyShort(openBalance)}</div><div class="tile-sub">${myInvoices.filter(i=>i.status!=='Paid').length} unpaid invoice(s)</div></div>
+      <div class="tile ${overdue.length?'accent-critical':''}"><div class="tile-label">Overdue</div><div class="tile-value">${overdue.length}</div><div class="tile-sub">${overdue.length?fmtMoneyShort(overdue[0].amount)+' · due '+fmtDateShort(overdue[0].due):'None — you’re all caught up'}</div></div>
+      <div class="tile"><div class="tile-label">Next due</div><div class="tile-value" style="font-size:17px;">${upcoming?fmtDateShort(upcoming.due):'—'}</div><div class="tile-sub">${upcoming?upcoming.id+' · '+fmtMoneyShort(upcoming.amount):'No upcoming invoices'}</div></div>
+      <div class="tile"><div class="tile-label">Open disputes / requests</div><div class="tile-value">${openReqs.length}</div><div class="tile-sub">${openReqs.length?'Tracked in Disputes & Requests':'Nothing open right now'}</div></div>
+    </div>
+    <div class="quick-actions">
+      <button class="btn btn-primary" onclick="openNewRequestModal()">+ File a dispute or request</button>
+      <button class="btn" onclick="openProofOfPaymentModal()">💳 Submit proof of payment</button>
+      <button class="btn" onclick="setView('invoices')">🧾 View invoices</button>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-head"><h2>Recent activity</h2></div>
+      <div class="card card-pad">
+        ${recentActivityRows(myTickets)}
+      </div>
+    </div>
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-head"><h2>Open requests</h2><span class="hint" style="cursor:pointer;color:var(--accent-strong);" onclick="setView('requests')">View all →</span></div>
+      <div class="card card-pad">
+        ${openReqs.length? openReqs.slice(0,4).map(t=>`
+          <div style="padding:9px 0;border-bottom:1px solid var(--border-soft);">
+            <div style="display:flex;justify-content:space-between;gap:8px;"><span class="row-title" style="font-size:13px;">${TYPE_META[t.type].icon} ${esc(t.subject)}</span></div>
+            <div style="display:flex;gap:6px;margin-top:5px;">${statusPill(t.status)}${slaPill(t)}</div>
+          </div>`).join('') : `<div class="empty">No open requests</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function recentActivityRows(tickets){
+  const events = [];
+  tickets.forEach(t=>{
+    events.push({at:t.createdAt, text:`Filed "${t.subject}"`, icon:TYPE_META[t.type].icon});
+    t.comments.forEach(c=>events.push({at:c.at, text:`${c.author} responded on "${t.subject}"`, icon:'💬'}));
+    if(t.resolvedAt) events.push({at:t.resolvedAt, text:`"${t.subject}" marked Resolved`, icon:'✅'});
+  });
+  INVOICES.filter(i=>i.status==='Paid').forEach(i=>events.push({at:i.paidOn, text:`Payment reconciled for ${i.id} (${i.receipt})`, icon:'💳'}));
+  events.sort((a,b)=>b.at-a.at);
+  if(!events.length) return `<div class="empty">No recent activity</div>`;
+  return events.slice(0,6).map(e=>`
+    <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);">
+      <span style="flex:0 0 auto;">${e.icon}</span>
+      <div style="flex:1;"><div style="font-size:13px;">${esc(e.text)}</div><div class="row-sub">${fmtDateTime(e.at)}</div></div>
+    </div>`).join('');
+}
+
+function viewClientInvoices(){
+  const f = STATE._invFilter||{status:'all', q:''};
+  STATE._invFilter=f;
+  let list = INVOICES.filter(i=>{
+    if(f.status!=='all' && i.status!==f.status) return false;
+    if(f.q && !i.id.toLowerCase().includes(f.q.toLowerCase()) && !i.period.toLowerCase().includes(f.q.toLowerCase())) return false;
+    return true;
+  }).sort((a,b)=>b.issued-a.issued);
+
+  return `
+  <div class="section">
+    <div class="section-head">
+      <h2>Invoices</h2>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="hint">${CLIENTS.meridian.name}</span>
+        <button class="btn btn-primary btn-sm" onclick="openProofOfPaymentModal()">💳 Upload Payment</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="field"><label>Status</label>
+        <select onchange="STATE._invFilter.status=this.value;render()">
+          ${['all','Open','Overdue','Paid'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All statuses':s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Search</label>
+        <div class="search-box"><input type="text" placeholder="Invoice # or period" value="${esc(f.q)}" oninput="STATE._invFilter.q=this.value;render()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Invoice</th><th>Period</th><th>Amount</th><th>Due date</th><th>Status</th><th>Files</th></tr></thead>
+        <tbody>
+          ${list.length? list.map(i=>`
+            <tr>
+              <td class="mono row-title">${i.id}</td>
+              <td>${i.period}</td>
+              <td class="mono">${fmtMoney(i.amount)}</td>
+              <td>${fmtDate(i.due)}${i.status==='Paid'?` <span class="row-sub">(paid ${fmtDateShort(i.paidOn)})</span>`:''}</td>
+              <td>${invoicePill(i.status)}</td>
+              <td>
+                <button class="btn btn-sm" onclick="viewInvoicePDF('${i.id}')">PDF</button>
+                ${i.headcount?`<button class="btn btn-sm" onclick="viewHeadcountCSV('${i.id}')">CSV</button>`:''}
+                ${i.status==='Paid'?`<button class="btn btn-sm" onclick="viewReceipt('${i.id}')">Receipt</button>`:''}
+              </td>
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No invoices match this filter</div></td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
+
+/* ---- Document viewer (PDF / CSV / receipt previews) ---- */
+function openDocPreview(title, subtitle, bodyHtml, downloadName){
+  openModal(`
+    <div class="modal-head"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body doc-preview-wrap">${bodyHtml}</div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" onclick="mockDownload('${downloadName}')">⬇ Download</button>
+    </div>
+  `, 'modal-wide');
+}
+
+function invoiceLineItemsHtml(inv){
+  const base = Math.round(inv.amount*0.82);
+  const adj = inv.amount - base;
+  return `
+    <tr><td>Outsourced staffing services — ${inv.period}</td><td class="mono">1</td><td class="mono">${fmtMoney(base)}</td><td class="mono">${fmtMoney(base)}</td></tr>
+    ${inv.headcount?`<tr><td>Headcount true-up / adjustments</td><td class="mono">1</td><td class="mono">${fmtMoney(adj)}</td><td class="mono">${fmtMoney(adj)}</td></tr>`:''}
+  `;
+}
+function viewInvoicePDF(invId){
+  const inv = invoiceById(invId), client = CLIENTS[inv.clientId];
+  const body = `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🌱 Sprout</div><div class="doc-brand-sub">Billing Statement</div></div>
+        <div class="doc-head-right"><div class="k">Invoice #</div><div class="v mono">${inv.id}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Billed to</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Billing period</div><div class="v">${inv.period}</div></div>
+        <div><div class="k">Issue date</div><div class="v">${fmtDate(inv.issued)}</div></div>
+        <div><div class="k">Due date</div><div class="v">${fmtDate(inv.due)}</div></div>
+      </div>
+      <div class="table-wrap"><table class="doc-table">
+        <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+        <tbody>${invoiceLineItemsHtml(inv)}</tbody>
+        <tfoot><tr><td colspan="3">Total due</td><td class="mono">${fmtMoney(inv.amount)}</td></tr></tfoot>
+      </table></div>
+      <div class="doc-status">${invoicePill(inv.status)} ${inv.status==='Paid'?`Paid ${fmtDate(inv.paidOn)} · Receipt ${inv.receipt}`:(inv.status==='Overdue'?'Past due — see Payments & Collections to submit proof of payment':'Not yet due')}</div>
+    </div>`;
+  openDocPreview(`Invoice ${inv.id}`, `${client.name} · ${inv.period}`, body, `${inv.id}.pdf`);
+}
+
+function headcountRowsFor(inv){
+  const seatBase = Math.max(20, Math.round(inv.amount/2400));
+  return [
+    {site:'Manila HQ', role:'Customer Support Agent', seats:Math.round(seatBase*0.55), rate:2350},
+    {site:'Manila HQ', role:'Team Lead', seats:Math.max(1,Math.round(seatBase*0.08)), rate:3100},
+    {site:'Cebu Site', role:'Customer Support Agent', seats:Math.round(seatBase*0.30), rate:2200},
+    {site:'Cebu Site', role:'QA Specialist', seats:Math.max(1,Math.round(seatBase*0.07)), rate:2500},
+  ];
+}
+function viewHeadcountCSV(invId){
+  const inv = invoiceById(invId), client = CLIENTS[inv.clientId];
+  const rows = headcountRowsFor(inv);
+  const totalSeats = rows.reduce((s,r)=>s+r.seats,0);
+  const totalAmt = rows.reduce((s,r)=>s+r.seats*r.rate,0);
+  const body = `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🌱 Sprout</div><div class="doc-brand-sub">Headcount Backup — ${inv.period}</div></div>
+        <div class="doc-head-right"><div class="k">Invoice #</div><div class="v mono">${inv.id}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Client</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Billing period</div><div class="v">${inv.period}</div></div>
+      </div>
+      <div class="table-wrap"><table class="doc-table">
+        <thead><tr><th>Site</th><th>Role</th><th>Seats</th><th>Rate / seat</th><th>Amount</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${r.site}</td><td>${r.role}</td><td class="mono">${r.seats}</td><td class="mono">${fmtMoney(r.rate)}</td><td class="mono">${fmtMoney(r.seats*r.rate)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Total billable seats: ${totalSeats}</td><td colspan="2"></td><td class="mono">${fmtMoney(totalAmt)}</td></tr></tfoot>
+      </table></div>
+      <div class="doc-status">📄 CSV attachment — rendered here as a table for preview</div>
+    </div>`;
+  openDocPreview(`Headcount backup — ${inv.id}`, `${client.name} · ${inv.period}`, body, `${inv.id}-headcount.csv`);
+}
+
+function viewReceipt(invId){
+  const inv = invoiceById(invId), client = CLIENTS[inv.clientId];
+  const body = `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🌱 Sprout</div><div class="doc-brand-sub">Official Collection Receipt</div></div>
+        <div class="doc-head-right"><div class="k">Receipt #</div><div class="v mono">${inv.receipt}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Received from</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Applied to invoice</div><div class="v mono">${inv.id}</div></div>
+        <div><div class="k">Date paid</div><div class="v">${fmtDate(inv.paidOn)}</div></div>
+        <div><div class="k">Amount received</div><div class="v mono">${fmtMoney(inv.amount)}</div></div>
+      </div>
+      <div class="doc-status">${invoicePill('Paid')} Reconciled against NetSuite payment record</div>
+    </div>`;
+  openDocPreview(`Receipt ${inv.receipt}`, `${client.name} · ${inv.period}`, body, `${inv.receipt}.pdf`);
+}
+
+function viewClientRequests(){
+  const myTickets = ticketsForClient(CLIENT_USER.clientId);
+  return `
+  <div class="section">
+    <div class="section-head">
+      <h2>Disputes & Requests</h2>
+      <button class="btn btn-primary" onclick="openNewRequestModal()">+ New request</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th></tr></thead>
+        <tbody>
+          ${myTickets.length? myTickets.map(t=>`
+            <tr class="clickable" onclick="openTicket('${t.id}')">
+              <td>${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</td>
+              <td class="wrap"><div class="row-title">${esc(t.subject)}</div>${t.relatedInvoice?`<div class="row-sub mono">${t.relatedInvoice}</div>`:''}</td>
+              <td>${fmtDateShort(t.createdAt)}</td>
+              <td>${statusPill(t.status)}</td>
+              <td>${slaPill(t)}</td>
+            </tr>`).join('') : `<tr><td colspan="5"><div class="empty">No requests filed yet</div></td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewClientPayments(){
+  const paid = INVOICES.filter(i=>i.status==='Paid').sort((a,b)=>b.paidOn-a.paidOn);
+  const popTickets = TICKETS.filter(t=>t.type==='proof_of_payment' && t.clientId===CLIENT_USER.clientId).sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+  <div class="section">
+    <div class="section-head">
+      <h2>Payments & Collections</h2>
+      <button class="btn btn-primary" onclick="openProofOfPaymentModal()">+ Submit proof of payment</button>
+    </div>
+    <div class="two-col">
+      <div class="card card-pad">
+        <h3 style="font-size:13px;margin-bottom:10px;">Paid invoices & collection receipts</h3>
+        ${paid.length? paid.map(i=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-soft);">
+            <div><div class="row-title mono">${i.id}</div><div class="row-sub">${i.period} · paid ${fmtDateShort(i.paidOn)}</div></div>
+            <div style="display:flex;gap:6px;align-items:center;"><span class="mono">${fmtMoneyShort(i.amount)}</span><button class="btn btn-sm" onclick="viewReceipt('${i.id}')">Receipt</button></div>
+          </div>`).join('') : `<div class="empty">No paid invoices yet</div>`}
+      </div>
+      <div class="card card-pad">
+        <h3 style="font-size:13px;margin-bottom:10px;">Proof-of-payment submissions</h3>
+        ${popTickets.length? popTickets.map(t=>`
+          <div style="padding:9px 0;border-bottom:1px solid var(--border-soft);">
+            <div class="row-title" style="font-size:13px;">${t.relatedInvoice||'—'}</div>
+            <div class="row-sub">Filed ${fmtDateShort(t.createdAt)}</div>
+            <div style="margin-top:5px;">${statusPill(t.status)}</div>
+          </div>`).join('') : `<div class="empty">No submissions yet</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewNotifications(role){
+  const list = notifsFor(role);
+  if(!list.some(n=>!n.read)){/*noop*/}
+  return `
+  <div class="section">
+    <div class="section-head"><h2>Notifications</h2>
+      <button class="btn btn-sm" onclick="markAllRead('${role}')">Mark all read</button>
+    </div>
+    <div class="card card-pad">
+      <div class="notif-list">
+        ${list.length? list.map(n=>`
+          <div class="notif-item ${n.read?'':'unread'}">
+            <div class="notif-icon">🔔</div>
+            <div><div class="notif-text">${esc(n.text)}</div><div class="notif-time">${fmtDateTime(n.at)}</div></div>
+          </div>`).join('') : `<div class="empty">No notifications</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+function markAllRead(role){
+  notifsFor(role).forEach(n=>n.read=true);
+  showToast('All notifications marked as read');
+  render();
+}
+
+/* ---- New request modal ---- */
+function openNewRequestModal(){
+  STATE._reqType = null;
+  renderRequestModal();
+}
+function renderRequestModal(){
+  const t = STATE._reqType;
+  const myInvoices = INVOICES;
+  const typeFields = {
+    dispute: `
+      <div class="form-field"><label>Related invoice</label>
+        <select id="f-invoice">${myInvoices.map(i=>`<option value="${i.id}">${i.id} — ${i.period} (${fmtMoneyShort(i.amount)})</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label>Reason</label>
+        <select id="f-reason"><option>Incorrect headcount</option><option>Unapproved surcharge</option><option>Duplicate billing</option><option>Rate discrepancy</option><option>Other</option></select>
+      </div>
+      <div class="form-field full"><label>Disputed amount <span class="opt">(optional)</span></label><input type="text" id="f-amount" placeholder="₱ 0.00"></div>`,
+    service_invoice: `
+      <div class="form-field full"><label>Related invoice <span class="opt">(optional)</span></label>
+        <select id="f-invoice"><option value="">— none —</option>${myInvoices.map(i=>`<option value="${i.id}">${i.id} — ${i.period}</option>`).join('')}</select>
+      </div>
+      <div class="form-field full"><label>Request type</label>
+        <select id="f-reason"><option>Corrected billing period</option><option>Different billing entity</option><option>Split invoice</option><option>Other</option></select>
+      </div>`,
+    headcount: `
+      <div class="form-field full"><label>Related invoice</label>
+        <select id="f-invoice">${myInvoices.filter(i=>i.headcount).map(i=>`<option value="${i.id}">${i.id} — ${i.period}</option>`).join('')}</select>
+      </div>
+      <div class="form-field full"><label>Request type</label>
+        <select id="f-reason"><option>Correction</option><option>Reissue</option><option>Clarification</option></select>
+      </div>`,
+    general_inquiry: `
+      <div class="form-field full"><label>Related invoice <span class="opt">(optional)</span></label>
+        <select id="f-invoice"><option value="">— none —</option>${myInvoices.map(i=>`<option value="${i.id}">${i.id} — ${i.period}</option>`).join('')}</select>
+      </div>`,
+  };
+
+  const body = !t ? `
+    <p style="font-size:13px;color:var(--text-muted);margin:-4px 0 2px;">What is this about?</p>
+    <div class="type-grid">
+      ${['dispute','service_invoice','headcount','general_inquiry'].map(key=>`
+        <div class="type-card" onclick="STATE._reqType='${key}';renderRequestModal()">
+          <div class="ti">${TYPE_META[key].icon}</div>
+          <div class="tn">${TYPE_META[key].label}</div>
+          <div class="td">${{dispute:'Contest a charge or line item',service_invoice:'New or reissued invoice',headcount:'Fix or clarify billed seats',general_inquiry:'Anything else billing-related'}[key]}</div>
+        </div>`).join('')}
+    </div>
+  ` : `
+    <div style="display:flex;align-items:center;gap:8px;margin:-4px 0 2px;">
+      <span class="pill pill-neutral">${TYPE_META[t].icon} ${TYPE_META[t].label}</span>
+      <button class="btn btn-ghost btn-sm" onclick="STATE._reqType=null;renderRequestModal()">Change type</button>
+    </div>
+    <div class="form-grid">
+      ${typeFields[t]}
+      <div class="form-field full"><label>Summary</label><input type="text" id="f-subject" placeholder="Short summary of your request"></div>
+      <div class="form-field full"><label>Details</label><textarea id="f-details" placeholder="Add any context the Finance team should know"></textarea></div>
+      <div class="form-field full"><label>Attachment <span class="opt">(optional)</span></label>
+        <div class="file-drop" id="f-attach" onclick="this.classList.add('has-file');this.textContent='📎 ${attachmentNameFor(t)} attached'">Click to attach a supporting file</div>
+      </div>
+    </div>`;
+
+  openModal(`
+    <div class="modal-head"><div><h3>File a dispute or request</h3><p>Routed automatically to ${CLIENTS[CLIENT_USER.clientId].name}’s assigned Finance PIC.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">${body}</div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      ${t?`<button class="btn btn-primary" onclick="submitNewRequest()">Submit request</button>`:''}
+    </div>
+  `);
+}
+function attachmentNameFor(type){
+  return {dispute:'dispute-support.pdf', service_invoice:'entity-change-request.pdf', headcount:'headcount-notes.pdf', general_inquiry:'attachment.pdf'}[type] || 'attachment.pdf';
+}
+function submitNewRequest(){
+  const t = STATE._reqType;
+  const subject = document.getElementById('f-subject').value.trim() || TYPE_META[t].label;
+  const details = document.getElementById('f-details').value.trim() || '(no additional details provided)';
+  const invoiceEl = document.getElementById('f-invoice');
+  const relatedInvoice = invoiceEl ? (invoiceEl.value||null) : null;
+  const reasonEl = document.getElementById('f-reason');
+  const reason = reasonEl ? reasonEl.value : null;
+  const amountEl = document.getElementById('f-amount');
+  const amount = amountEl ? amountEl.value.trim() : null;
+  const attachEl = document.getElementById('f-attach');
+  const attachments = (attachEl && attachEl.classList.contains('has-file')) ? [attachmentNameFor(t)] : [];
+  const client = CLIENTS[CLIENT_USER.clientId];
+  const ticket = {
+    id: nextTicketId(), type:t, clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
+    subject, details, relatedInvoice, reason: reason||null, amount: amount||null,
+    createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS[t]*24*3600*1000),
+    resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+  };
+  TICKETS.unshift(ticket);
+  NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`New ${TYPE_META[t].label.toLowerCase()} filed by ${client.name} — auto-assigned to you.`, read:false, ticketId:ticket.id});
+  NOTIFICATIONS.unshift({id:'N'+ticket.id+'b', for:{type:'lead'}, at:new Date(), text:`${client.name} filed a ${TYPE_META[t].label.toLowerCase()} — routed to ${REPS[client.pic].name}.`, read:false, ticketId:ticket.id});
+  closeModal();
+  showToast(`Request submitted — routed to ${REPS[client.pic].name}`);
+  setView('requests');
+}
+
+/* ---- Proof of payment modal ---- */
+function openProofOfPaymentModal(){
+  const unpaid = INVOICES.filter(i=>i.status!=='Paid');
+  openModal(`
+    <div class="modal-head"><div><h3>Submit proof of payment</h3><p>For reconciliation against ${CLIENTS[CLIENT_USER.clientId].name}’s NetSuite account.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field"><label>Receiving bank</label>
+          <select id="p-bank"><option>BPI</option><option>BDO</option><option>Metrobank</option><option>UnionBank</option><option>Other</option></select>
+        </div>
+        <div class="form-field"><label>Payment date</label><input type="date" id="p-date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-field"><label>Amount paid</label><input type="text" id="p-amount" placeholder="₱ 0.00"></div>
+        <div class="form-field"><label>Reference / slip #</label><input type="text" id="p-ref" placeholder="e.g. TX-88213"></div>
+        <div class="form-field full"><label>Apply to invoice(s)</label>
+          <div class="invoice-check-list">
+            ${unpaid.map(i=>`<label><input type="checkbox" name="p-inv" value="${i.id}">${i.id} — ${i.period} (${fmtMoneyShort(i.amount)})</label>`).join('') || '<span class="form-hint">No open invoices to apply to.</span>'}
+          </div>
+        </div>
+        <div class="form-field full">
+          <label class="check-row"><input type="checkbox" id="p-cwt" onchange="document.getElementById('p-2307-wrap').style.display=this.checked?'flex':'none'"> This payment includes creditable withholding tax (CWT)</label>
+        </div>
+        <div class="form-field full" id="p-2307-wrap" style="display:none;">
+          <label>BIR Form 2307</label>
+          <div class="file-drop" id="p-2307-file" onclick="this.classList.add('has-file');this.textContent='📎 BIR-2307.pdf attached'">Click to attach BIR 2307</div>
+        </div>
+        <div class="form-field full">
+          <label>Proof of payment</label>
+          <div class="file-drop" id="p-proof-file" onclick="this.classList.add('has-file');this.textContent='📎 deposit-slip.jpg attached'">Click to attach bank transfer slip / deposit slip / receipt</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitProofOfPayment()">Submit for reconciliation</button>
+    </div>
+  `);
+}
+function submitProofOfPayment(){
+  const bank = document.getElementById('p-bank').value;
+  const date = document.getElementById('p-date').value;
+  const amount = document.getElementById('p-amount').value.trim();
+  const ref = document.getElementById('p-ref').value.trim();
+  const cwt = document.getElementById('p-cwt').checked;
+  const checked = Array.from(document.querySelectorAll('input[name=p-inv]:checked')).map(el=>el.value);
+  const client = CLIENTS[CLIENT_USER.clientId];
+  const attachments = [];
+  if(document.getElementById('p-proof-file').classList.contains('has-file')) attachments.push('deposit-slip.jpg');
+  if(cwt && document.getElementById('p-2307-file').classList.contains('has-file')) attachments.push('BIR-2307.pdf');
+  const ticket = {
+    id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
+    subject:`Proof of payment — ${checked.join(', ')||'unapplied'}`,
+    details:`Bank transfer submitted via ${bank}${date?' on '+fmtDate(new Date(date+'T00:00:00')):''}. Awaiting Finance reconciliation against NetSuite.`,
+    relatedInvoice:checked[0]||null, invoicesApplied:checked, bank, amountPaid: amount||null, refNo: ref||null, cwt,
+    createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS.proof_of_payment*24*3600*1000),
+    resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+  };
+  TICKETS.unshift(ticket);
+  NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment submitted by ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
+  closeModal();
+  showToast('Proof of payment submitted for reconciliation');
+  setView('payments');
+}
+
+/* ============================================================
+   FINANCE REP VIEWS
+   ============================================================ */
+function viewRepQueue(){
+  const rep = REPS[STATE.activeRep];
+  const list = ticketsForRep(rep.id);
+  const counts = repOpenCounts(rep.id);
+  const justFiled = list.filter(t=>t.status==='New' && (NOW-t.createdAt)<3600*1000*24);
+
+  const f = STATE._repFilter||{status:'all'};
+  STATE._repFilter=f;
+  const filtered = f.status==='all'?list:list.filter(t=>t.status===f.status);
+
+  return `
+  ${justFiled.length?`<div class="banner"><span>🔔</span><div><b>${justFiled.length} new request${justFiled.length>1?'s':''}</b> just auto-assigned to you — ${justFiled.map(t=>`"${esc(t.subject)}"`).join(', ')}.</div></div>`:''}
+  <div class="section">
+    <div class="section-head"><h2>Summary</h2></div>
+    <div class="tiles">
+      <div class="tile"><div class="tile-label">New</div><div class="tile-value">${counts.New}</div></div>
+      <div class="tile"><div class="tile-label">In Progress</div><div class="tile-value">${counts['In Progress']}</div></div>
+      <div class="tile"><div class="tile-label">Pending Client Info</div><div class="tile-value">${counts['Pending Client Info']}</div></div>
+      <div class="tile accent-critical"><div class="tile-label">SLA breached</div><div class="tile-value">${counts.breached}</div></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-head"><h2>Personal queue</h2><span class="hint">Clients whose NetSuite-assigned Finance PIC is ${rep.name}</span></div>
+    <div class="filters">
+      <div class="field"><label>Status</label>
+        <select onchange="STATE._repFilter.status=this.value;render()">
+          ${['all','New','In Progress','Pending Client Info','Resolved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th></tr></thead>
+        <tbody>
+          ${filtered.length? filtered.map(t=>`
+            <tr class="clickable" onclick="openTicket('${t.id}')">
+              <td class="row-title">${CLIENTS[t.clientId].name}</td>
+              <td>${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</td>
+              <td class="wrap">${esc(t.subject)}</td>
+              <td>${fmtDateShort(t.createdAt)}</td>
+              <td>${statusPill(t.status)}</td>
+              <td>${slaPill(t)}</td>
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No tickets match this filter</div></td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewTicketDetail(ticketId, mode){
+  mode = mode || 'rep';
+  const t = TICKETS.find(x=>x.id===ticketId);
+  if(!t) return `<div class="empty">Ticket not found.</div>`;
+  const client = CLIENTS[t.clientId];
+  const isStaff = mode==='rep' || mode==='lead';
+  const notes = isStaff ? INTERNAL_NOTES.filter(n=>n.clientId===t.clientId) : [];
+  const otherReps = Object.values(REPS).filter(r=>r.id!==t.pic);
+  const backLabel = (NAV[STATE.role].find(n=>n.id===STATE.view)||{}).label || 'back';
+
+  const events = [{at:t.createdAt, actor:t.requester, role:'client', action:'filed this request', note:null}];
+  t.comments.forEach(c=>events.push({at:c.at, actor:c.author, role:c.role||'pic', action:'responded', note:c.text}));
+  if(t.status==='Pending Client Info' && !t.comments.some(c=>c.role==='pic')) events.push({at:t.createdAt, actor:REPS[t.pic].name, role:'pic', action:'requested more information from the client'});
+  if(t.resolvedAt) events.push({at:t.resolvedAt, actor:REPS[t.pic].name, role:'pic', action:'marked this request Resolved'});
+  events.sort((a,b)=>a.at-b.at);
+
+  return `
+  <div style="margin-bottom:14px;"><button class="btn btn-ghost btn-sm" onclick="STATE.activeTicket=null;render()">← Back to ${esc(backLabel)}</button></div>
+  <div class="detail-header">
+    <div>
+      <div class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:4px;">${t.id} · ${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</div>
+      <h1 style="font-size:19px;">${esc(t.subject)}</h1>
+    </div>
+    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}</div>
+  </div>
+
+  <div class="detail-meta card card-pad">
+    <div class="detail-meta-item"><div class="k">Client</div><div class="v">${client.name}</div></div>
+    <div class="detail-meta-item"><div class="k">Requester</div><div class="v">${t.requester}</div></div>
+    <div class="detail-meta-item"><div class="k">Assigned PIC</div><div class="v">${REPS[t.pic].name}</div></div>
+    ${isStaff?`<div class="detail-meta-item"><div class="k">CSM / Sales</div><div class="v">${CSMS[client.csm].name} / ${CSMS[client.sales].name}</div></div>`:''}
+    <div class="detail-meta-item"><div class="k">Related invoice</div><div class="v mono">${t.relatedInvoice||'—'}</div></div>
+    <div class="detail-meta-item"><div class="k">SLA due</div><div class="v">${fmtDate(t.slaDue)}</div></div>
+  </div>
+
+  <div class="section-head" style="margin-top:18px;"><h2>What was submitted</h2><span class="hint">By ${esc(t.requester)} · ${fmtDateTime(t.createdAt)}</span></div>
+  <div class="card card-pad">
+    <div class="form-grid">
+      ${t.reason?`<div class="form-field"><label>Reason</label><div style="font-size:13.5px;">${esc(t.reason)}</div></div>`:''}
+      ${t.amount?`<div class="form-field"><label>Disputed amount</label><div class="mono" style="font-size:13.5px;">${esc(t.amount)}</div></div>`:''}
+      ${t.bank?`<div class="form-field"><label>Bank</label><div style="font-size:13.5px;">${esc(t.bank)}</div></div>`:''}
+      ${t.refNo?`<div class="form-field"><label>Reference #</label><div class="mono" style="font-size:13.5px;">${esc(t.refNo)}</div></div>`:''}
+      ${t.amountPaid?`<div class="form-field"><label>Amount paid</label><div class="mono" style="font-size:13.5px;">${esc(t.amountPaid)}</div></div>`:''}
+      ${t.type==='proof_of_payment'?`<div class="form-field"><label>CWT applied</label><div style="font-size:13.5px;">${t.cwt?'Yes — BIR 2307 attached':'No'}</div></div>`:''}
+      <div class="form-field full"><label>Details</label><div style="font-size:13.5px;color:var(--text-muted);line-height:1.6;">${esc(t.details)}</div></div>
+    </div>
+    ${attachmentsList(t)}
+  </div>
+
+  <div class="two-col" style="margin-top:18px;">
+    <div>
+      <div class="section-head"><h2>History</h2></div>
+      <div class="card card-pad">
+        <div class="timeline">
+          ${events.map(e=>`
+            <div class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div class="timeline-body">
+                <b>${esc(e.actor)}</b> ${e.role==='client'?'<span class="pill pill-info" style="margin-left:2px;">Client</span>':''} ${e.action}
+                <div class="timeline-time">${fmtDateTime(e.at)}</div>
+                ${e.note?`<div class="timeline-note">${esc(e.note)}</div>`:''}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+      ${notes.length?`
+      <div class="section-head" style="margin-top:18px;"><h2>Internal notes</h2><span class="hint">Visible to Finance only</span></div>
+      ${notes.map(n=>`<div class="internal-note" style="margin-bottom:8px;"><b>${CSMS[n.author].name} (${CSMS[n.author].role}):</b> ${esc(n.text)} <span style="color:var(--text-faint);font-weight:400;">— ${fmtDateShort(n.at)}</span></div>`).join('')}
+      `:''}
+    </div>
+    <div>
+      <div class="section-head"><h2>${isStaff?'Actions':'Status'}</h2></div>
+      <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
+        ${isStaff ? ((t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
+        <div class="form-field"><label>Add a response</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
+        <button class="btn btn-primary" onclick="repRespond('${t.id}')">Send response &amp; set In Progress</button>
+        <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
+        <button class="btn" onclick="repResolve('${t.id}')">Mark Resolved</button>
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+        <div class="form-field"><label>Reassign to</label>
+          <select id="reassign-target">${otherReps.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}</select>
+        </div>
+        <button class="btn" onclick="repReassign('${t.id}')">${mode==='lead'?'Reassign ticket':'Request reassignment (Lead approval)'}</button>
+        `) : clientActionsHtml(t)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function clientActionsHtml(t){
+  if(t.status==='Resolved'||t.status==='Closed'){
+    return `<div class="form-hint">This request is ${t.status.toLowerCase()}. Need something else? File a new request from Disputes &amp; Requests.</div>`;
+  }
+  if(t.status==='Pending Client Info'){
+    return `
+    <div class="form-hint">${REPS[t.pic].name} asked for more information — reply below to keep this moving.</div>
+    <div class="form-field"><label>Your reply</label><textarea id="client-reply-text" placeholder="Add the details Finance asked for"></textarea></div>
+    <button class="btn btn-primary" onclick="clientReply('${t.id}')">Send reply to ${REPS[t.pic].name}</button>`;
+  }
+  return `<div class="form-hint">${REPS[t.pic].name} (your assigned Finance PIC) is reviewing this request. You'll get a notification the moment there's an update.</div>`;
+}
+function clientReply(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const el = document.getElementById('client-reply-text');
+  const text = el ? el.value.trim() : '';
+  if(!text){ showToast('Add a message before sending.'); return; }
+  t.comments.push({author:CLIENT_USER.name, role:'client', at:new Date(), text});
+  t.status='In Progress';
+  NOTIFICATIONS.unshift({id:'N'+t.id+'creply'+Date.now(), for:{type:'rep',id:t.pic}, at:new Date(), text:`${CLIENT_USER.name} replied on "${t.subject}" with the requested info.`, read:false, ticketId:t.id});
+  showToast('Reply sent to '+REPS[t.pic].name);
+  render();
+}
+
+/* ---- Attachments (simulated uploads, rendered as document previews) ---- */
+function fileIcon(filename){
+  if(/\.pdf$/i.test(filename)) return '📄';
+  if(/\.(jpg|jpeg|png)$/i.test(filename)) return '🖼️';
+  if(/\.(xlsx|xls|csv)$/i.test(filename)) return '📊';
+  return '📎';
+}
+function attachmentsList(t){
+  if(!t.attachments || !t.attachments.length) return `<div class="form-hint" style="margin-top:10px;">No attachments on this request.</div>`;
+  return `
+  <div class="form-field full" style="margin-top:14px;"><label>Attachments</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${t.attachments.map(f=>`<button class="btn btn-sm" onclick="viewAttachment('${t.id}','${f}')">${fileIcon(f)} ${f}</button>`).join('')}
+    </div>
+  </div>`;
+}
+function parseMoney(s){ return parseFloat(String(s).replace(/[^0-9.]/g,''))||0; }
+function viewAttachment(ticketId, filename){
+  const t = TICKETS.find(x=>x.id===ticketId);
+  const client = CLIENTS[t.clientId];
+  openDocPreview(filename, `Attached to ${t.id} — ${TYPE_META[t.type].label}`, attachmentPreviewBody(filename, t, client), filename);
+}
+function attachmentPreviewBody(filename, t, client){
+  const low = filename.toLowerCase();
+  if(low.includes('deposit-slip')||low.includes('proof-of-payment')){
+    const amt = t.amountPaid || (t.relatedInvoice && invoiceById(t.relatedInvoice) ? fmtMoney(invoiceById(t.relatedInvoice).amount) : '—');
+    return `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🏦 ${t.bank||'Bank'} Transfer Confirmation</div><div class="doc-brand-sub">Scanned deposit slip — client upload</div></div>
+        <div class="doc-head-right"><div class="k">Reference</div><div class="v mono">${t.refNo||'—'}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Sender</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Amount</div><div class="v mono">${amt}</div></div>
+        <div><div class="k">Date</div><div class="v">${fmtDate(t.createdAt)}</div></div>
+        <div><div class="k">Applied to</div><div class="v mono">${(t.invoicesApplied&&t.invoicesApplied.length?t.invoicesApplied.join(', '):(t.relatedInvoice||'—'))}</div></div>
+      </div>
+      <div class="doc-status">📎 Simulated upload — represents the file the client attached when filing this request.</div>
+    </div>`;
+  }
+  if(low.includes('2307')){
+    const amt = t.amountPaid || '—';
+    return `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🇵🇭 BIR Form 2307</div><div class="doc-brand-sub">Certificate of Creditable Tax Withheld at Source</div></div>
+        <div class="doc-head-right"><div class="k">Period</div><div class="v">${t.createdAt.toLocaleDateString('en-PH',{month:'short',year:'numeric'})}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Payee</div><div class="v">Sprout</div></div>
+        <div><div class="k">Payor</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Income payment</div><div class="v mono">${amt}</div></div>
+        <div><div class="k">Tax withheld (est.)</div><div class="v mono">${amt!=='—'?fmtMoney(parseMoney(amt)*0.02):'—'}</div></div>
+      </div>
+      <div class="doc-status">📎 Simulated upload — represents the BIR 2307 the client attached for CWT reconciliation.</div>
+    </div>`;
+  }
+  if(low.endsWith('.xlsx')||low.includes('roster')){
+    return `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">📊 Approved Seat Roster</div><div class="doc-brand-sub">${client.name} — client-maintained reference</div></div>
+      </div>
+      <div class="table-wrap"><table class="doc-table">
+        <thead><tr><th>Site</th><th>Role</th><th>Approved seats</th></tr></thead>
+        <tbody>
+          <tr><td>Manila HQ</td><td>Customer Support Agent</td><td class="mono">112</td></tr>
+          <tr><td>Manila HQ</td><td>Team Lead</td><td class="mono">17</td></tr>
+          <tr><td>Cebu Site</td><td>Customer Support Agent</td><td class="mono">61</td></tr>
+          <tr><td>Cebu Site</td><td>QA Specialist</td><td class="mono">14</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="2">Total approved</td><td class="mono">204</td></tr></tfoot>
+      </table></div>
+      <div class="doc-status">📎 Simulated upload — client's internal roster, cited as the basis for this dispute.</div>
+    </div>`;
+  }
+  return `
+  <div class="doc-sheet">
+    <div class="doc-head">
+      <div><div class="doc-brand">📄 Supporting Document</div><div class="doc-brand-sub">Attached by ${t.requester}</div></div>
+    </div>
+    <div class="doc-meta">
+      <div><div class="k">Related to</div><div class="v">${TYPE_META[t.type].label}${t.relatedInvoice?' · '+t.relatedInvoice:''}</div></div>
+      <div><div class="k">Filed</div><div class="v">${fmtDate(t.createdAt)}</div></div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
+      “${esc(t.details)}”
+    </div>
+    <div class="doc-status">📎 Simulated upload — this prototype doesn't store real files, so the attachment content mirrors what the client described when filing.</div>
+  </div>`;
+}
+
+function repRespond(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const text = document.getElementById('resp-text').value.trim();
+  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text||'(followed up with the client)'});
+  t.status='In Progress';
+  showToast('Response sent — status set to In Progress');
+  render();
+}
+function repRequestInfo(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const el = document.getElementById('resp-text');
+  const text = el ? el.value.trim() : '';
+  t.status='Pending Client Info';
+  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text || 'Requested more information from the client. SLA clock paused until they respond.'});
+  NOTIFICATIONS.unshift({id:'N'+t.id+'info'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`${REPS[t.pic].name} needs more info on "${t.subject}": "${text || 'Please provide additional details.'}"`, read:false, ticketId:t.id});
+  showToast('Marked Pending Client Info — SLA clock paused, client notified');
+  render();
+}
+function repResolve(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const el = document.getElementById('resp-text');
+  const text = el ? el.value.trim() : '';
+  if(text) t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text});
+  t.status='Resolved'; t.resolvedAt=new Date();
+  NOTIFICATIONS.unshift({id:'N'+t.id+'res'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your request "${t.subject}" was marked Resolved.${text?' Note from '+REPS[t.pic].name+': "'+text+'"':''}`, read:false, ticketId:t.id});
+  showToast('Ticket marked Resolved — client notified');
+  render();
+}
+function repReassign(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const target = document.getElementById('reassign-target').value;
+  const from = t.pic;
+  t.reassignedFrom = from;
+  t.pic = target;
+  NOTIFICATIONS.unshift({id:'N'+t.id+'reassign', for:{type:'rep',id:target}, at:new Date(), text:`Ticket "${t.subject}" was reassigned to you from ${REPS[from].name}.`, read:false, ticketId:t.id});
+  showToast(`Reassigned to ${REPS[target].name}`);
+  STATE.activeTicket=null;
+  render();
+}
+
+/* ============================================================
+   FINANCE TEAM LEAD VIEWS
+   ============================================================ */
+function allEscalations(){
+  return TICKETS.filter(t=>openTickets([t]).length && ['Breached','At risk'].includes(slaState(t).label))
+    .sort((a,b)=> (slaState(a).label==='Breached'?0:1) - (slaState(b).label==='Breached'?0:1) || a.slaDue-b.slaDue);
+}
+
+/* ============================================================
+   KPI / PERFORMANCE REPORTING (shared by Finance Rep & Team Lead)
+   Daily / Weekly / Monthly / Custom-range buckets over received,
+   resolved, and pending requests — per associate and per team.
+   ============================================================ */
+function startOfDay(dt){ const x=new Date(dt); x.setHours(0,0,0,0); return x; }
+function endOfDay(dt){ const x=new Date(dt); x.setHours(23,59,59,999); return x; }
+function addDaysDate(dt,n){ const x=new Date(dt); x.setDate(x.getDate()+n); return x; }
+
+function getKpiBuckets(){
+  const k = STATE.kpi;
+  const buckets=[];
+  if(k.mode==='daily'){
+    for(let i=13;i>=0;i--){ const day=addDaysDate(NOW,-i); buckets.push({label:day.toLocaleDateString('en-PH',{month:'short',day:'numeric'}), start:startOfDay(day), end:endOfDay(day)}); }
+  } else if(k.mode==='weekly'){
+    for(let i=7;i>=0;i--){
+      const end = endOfDay(addDaysDate(NOW,-7*i));
+      const start = startOfDay(addDaysDate(end,-6));
+      buckets.push({label:'Wk of '+start.toLocaleDateString('en-PH',{month:'short',day:'numeric'}), start, end});
+    }
+  } else if(k.mode==='monthly'){
+    for(let i=5;i>=0;i--){
+      const ref = new Date(NOW.getFullYear(), NOW.getMonth()-i, 1);
+      const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+      const end = endOfDay(new Date(ref.getFullYear(), ref.getMonth()+1, 0));
+      buckets.push({label:start.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}), start, end});
+    }
+  } else { // custom
+    const from = k.from ? startOfDay(new Date(k.from+'T00:00:00')) : startOfDay(addDaysDate(NOW,-13));
+    const to = k.to ? endOfDay(new Date(k.to+'T00:00:00')) : endOfDay(NOW);
+    const totalDays = Math.max(1, Math.round((startOfDay(to)-startOfDay(from))/864e5)+1);
+    if(totalDays<=31){
+      for(let i=0;i<totalDays;i++){ const day=addDaysDate(from,i); const end=endOfDay(day); buckets.push({label:day.toLocaleDateString('en-PH',{month:'short',day:'numeric'}), start:startOfDay(day), end: end>to?to:end}); }
+    } else {
+      let cur = new Date(from);
+      while(cur<=to){
+        const start = new Date(cur);
+        const rawEnd = endOfDay(addDaysDate(start,6));
+        buckets.push({label:'Wk of '+start.toLocaleDateString('en-PH',{month:'short',day:'numeric'}), start, end: rawEnd>to?to:rawEnd});
+        cur = addDaysDate(cur,7);
+      }
+    }
+  }
+  return buckets;
+}
+function kpiRangeLabel(buckets){
+  if(!buckets.length) return '';
+  return `${fmtDate(buckets[0].start)} – ${fmtDate(buckets[buckets.length-1].end)}`;
+}
+function kpiSeries(repIds, buckets){
+  const subset = repIds==='all' ? TICKETS : TICKETS.filter(t=>repIds.includes(t.pic));
+  return buckets.map(b=>{
+    const received = subset.filter(t=>t.createdAt>=b.start && t.createdAt<=b.end).length;
+    const resolved = subset.filter(t=>t.resolvedAt && t.resolvedAt>=b.start && t.resolvedAt<=b.end).length;
+    const pending = subset.filter(t=>t.createdAt<=b.end && (!t.resolvedAt || t.resolvedAt>b.end)).length;
+    return {...b, received, resolved, pending};
+  });
+}
+function kpiTotals(repIds, buckets){
+  const series = kpiSeries(repIds, buckets);
+  const received = series.reduce((s,x)=>s+x.received,0);
+  const resolved = series.reduce((s,x)=>s+x.resolved,0);
+  const subsetAll = repIds==='all' ? TICKETS : TICKETS.filter(t=>repIds.includes(t.pic));
+  const pendingNow = openTickets(subsetAll).length;
+  const start = buckets[0].start, end = buckets[buckets.length-1].end;
+  const resolvedInRange = subsetAll.filter(t=>t.resolvedAt && t.resolvedAt>=start && t.resolvedAt<=end);
+  const avgResDays = resolvedInRange.length ? resolvedInRange.reduce((s,t)=>s+((t.resolvedAt-t.createdAt)/864e5),0)/resolvedInRange.length : null;
+  const onTime = resolvedInRange.filter(t=>t.resolvedAt<=t.slaDue).length;
+  const slaCompliance = resolvedInRange.length ? Math.round(100*onTime/resolvedInRange.length) : null;
+  return {received, resolved, pendingNow, avgResDays, slaCompliance, resolvedInRangeCount:resolvedInRange.length};
+}
+function kpiControlsHtml(opts){
+  opts = opts||{};
+  const k = STATE.kpi;
+  const modes = [['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['custom','Custom']];
+  return `
+  <div class="kpi-controls">
+    <div class="seg">
+      ${modes.map(([id,lbl])=>`<button class="seg-btn ${k.mode===id?'active':''}" onclick="STATE.kpi.mode='${id}';render()">${lbl}</button>`).join('')}
+    </div>
+    ${k.mode==='custom'?`
+    <div class="field"><label>From</label><input type="date" value="${k.from||''}" onchange="STATE.kpi.from=this.value;render()"></div>
+    <div class="field"><label>To</label><input type="date" value="${k.to||''}" onchange="STATE.kpi.to=this.value;render()"></div>
+    `:''}
+    ${opts.repFilter?`
+    <div class="field"><label>Associate</label>
+      <select onchange="STATE.kpi.repFilter=this.value;render()">
+        <option value="all" ${k.repFilter==='all'?'selected':''}>All reps (team)</option>
+        ${Object.values(REPS).map(r=>`<option value="${r.id}" ${k.repFilter===r.id?'selected':''}>${r.name}</option>`).join('')}
+      </select>
+    </div>`:''}
+  </div>`;
+}
+function groupedBarsHtml(series){
+  const max = Math.max(1, ...series.map(s=>Math.max(s.received,s.resolved)));
+  return `
+  <div class="kpi-legend">
+    <span class="kpi-legend-item"><span class="kpi-legend-dot" style="background:var(--info);"></span>Received</span>
+    <span class="kpi-legend-item"><span class="kpi-legend-dot" style="background:var(--good);"></span>Resolved</span>
+  </div>
+  <div class="gbars">
+    ${series.map(s=>`
+      <div class="gbar-col">
+        <div class="gbar-pair">
+          <div class="gbar-shape" title="Received: ${s.received}" style="height:${s.received?8+92*s.received/max:0}%;background:var(--info);"></div>
+          <div class="gbar-shape" title="Resolved: ${s.resolved}" style="height:${s.resolved?8+92*s.resolved/max:0}%;background:var(--good);"></div>
+        </div>
+        <div class="gbar-label">${s.label}</div>
+      </div>`).join('')}
+  </div>`;
+}
+function kpiTile(label, value, sub, accentCls){
+  return `<div class="tile ${accentCls||''}"><div class="tile-label">${label}</div><div class="tile-value">${value}</div>${sub?`<div class="tile-sub">${sub}</div>`:''}</div>`;
+}
+
+function viewLeadTeam(){
+  const reps = Object.values(REPS);
+  const maxOpen = Math.max(1,...reps.map(r=>repOpenCounts(r.id).open));
+  const totalOpen = TICKETS.filter(t=>openTickets([t]).length).length;
+  const totalBreached = reps.reduce((s,r)=>s+repOpenCounts(r.id).breached,0);
+  const totalAtRisk = reps.reduce((s,r)=>s+repOpenCounts(r.id).atRisk,0);
+  const compliance = Math.round(100*(TICKETS.filter(t=>t.status==='Resolved').length)/(TICKETS.filter(t=>t.status==='Resolved'||['Breached'].includes(slaState(t).label)).length||1));
+
+  return `
+  ${introBanner(`This prototype simulates the <b>Finance Team Lead</b> monitoring dashboard from the design doc — pending workload per rep, SLA risk, and one-click reassignment.`)}
+  <div class="section">
+    <div class="section-head"><h2>Team-wide summary</h2></div>
+    <div class="tiles">
+      <div class="tile"><div class="tile-label">Open items (team)</div><div class="tile-value">${totalOpen}</div></div>
+      <div class="tile accent-warning"><div class="tile-label">At risk</div><div class="tile-value">${totalAtRisk}</div></div>
+      <div class="tile accent-critical"><div class="tile-label">Breached</div><div class="tile-value">${totalBreached}</div></div>
+      <div class="tile accent-good"><div class="tile-label">SLA compliance</div><div class="tile-value">${compliance}%</div><div class="tile-sub">Resolved on time vs. breached</div></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-head"><h2>Pending workload per rep</h2><span class="hint">Finance Team A</span></div>
+    <div class="card card-pad">
+      ${reps.map(r=>{
+        const c = repOpenCounts(r.id);
+        return `<div class="rep-row">
+          <div class="rep-avatar">${r.initials}</div>
+          <div class="rep-info"><div class="rep-name">${r.name}</div><div class="rep-sub">${c.open} open · ${c.total} total</div></div>
+          <div class="rep-bar-wrap"><div class="hbar-track"><div class="hbar-fill" style="width:${100*c.open/maxOpen}%"></div></div></div>
+          <div class="rep-flags">
+            ${c.atRisk?`<span class="pill pill-warning">${c.atRisk} at risk</span>`:''}
+            ${c.breached?`<span class="pill pill-critical">${c.breached} breached</span>`:''}
+            ${(!c.atRisk && !c.breached)?`<span class="pill pill-good">On track</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-head"><h2>All team tickets</h2><span class="hint">Full visibility across both reps</span></div>
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Client</th><th>PIC</th><th>Type</th><th>Subject</th><th>Status</th><th>SLA</th></tr></thead>
+        <tbody>
+          ${TICKETS.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,12).map(t=>`
+            <tr class="clickable" onclick="openTicket('${t.id}')">
+              <td class="row-title">${CLIENTS[t.clientId].name}</td>
+              <td>${REPS[t.pic].name}</td>
+              <td>${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</td>
+              <td class="wrap">${esc(t.subject)}</td>
+              <td>${statusPill(t.status)}</td>
+              <td>${slaPill(t)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewLeadEscalations(){
+  const list = allEscalations();
+  const reps = Object.values(REPS);
+  return `
+  <div class="section">
+    <div class="section-head"><h2>SLA escalations</h2><span class="hint">Tickets at risk of or breaching their SLA</span></div>
+    ${list.length?`
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Client</th><th>PIC</th><th>Subject</th><th>SLA due</th><th>Status</th><th>Reassign</th></tr></thead>
+        <tbody>
+          ${list.map(t=>`
+            <tr>
+              <td class="row-title" style="cursor:pointer;" onclick="openTicket('${t.id}')">${CLIENTS[t.clientId].name}</td>
+              <td>${REPS[t.pic].name}</td>
+              <td class="wrap" style="cursor:pointer;" onclick="openTicket('${t.id}')">${esc(t.subject)}</td>
+              <td>${fmtDate(t.slaDue)}</td>
+              <td>${slaPill(t)}</td>
+              <td>
+                <div style="display:flex;gap:6px;">
+                  <select id="reassign-${t.id}" class="btn-sm" style="padding:5px 7px;">
+                    ${reps.filter(r=>r.id!==t.pic).map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+                  </select>
+                  <button class="btn btn-sm" onclick="leadReassign('${t.id}')">Reassign</button>
+                </div>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>` : `<div class="card"><div class="empty">🎉 No tickets currently at risk or breaching SLA.</div></div>`}
+  </div>`;
+}
+function leadReassign(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const target = document.getElementById('reassign-'+id).value;
+  const from = t.pic;
+  t.reassignedFrom = from; t.pic = target;
+  NOTIFICATIONS.unshift({id:'N'+t.id+'lreassign', for:{type:'rep',id:target}, at:new Date(), text:`Ticket "${t.subject}" was reassigned to you by Angela Tan (Team Lead).`, read:false, ticketId:t.id});
+  showToast(`Reassigned "${t.subject}" to ${REPS[target].name}`);
+  render();
+}
+
+function viewLeadReports(){
+  const buckets = getKpiBuckets();
+  const filterReps = STATE.kpi.repFilter==='all' ? 'all' : [STATE.kpi.repFilter];
+  const isFiltered = filterReps!=='all';
+  const chartSeries = kpiSeries(filterReps, buckets);
+  const scopedTotals = kpiTotals(filterReps, buckets);
+  const rangeStart = buckets[0].start, rangeEnd = buckets[buckets.length-1].end;
+  const scopeLabel = isFiltered ? REPS[STATE.kpi.repFilter].name : 'whole team';
+
+  const reasonCounts = {};
+  TICKETS.filter(t=>t.type==='dispute' && t.createdAt>=rangeStart && t.createdAt<=rangeEnd && (!isFiltered || filterReps.includes(t.pic))).forEach(t=>{
+    const r = t.subject.toLowerCase().includes('headcount')?'Headcount discrepancy':
+      t.subject.toLowerCase().includes('surcharge')?'Unapproved surcharge':
+      t.subject.toLowerCase().includes('minimum')?'Billing terms disagreement':'Other';
+    reasonCounts[r]=(reasonCounts[r]||0)+1;
+  });
+  const reasonList = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]);
+  const maxReason = Math.max(1,...reasonList.map(x=>x[1]));
+
+  return `
+  ${introBanner(`This <b>Reports &amp; KPIs</b> page implements Section 13 of the design doc — daily/weekly/monthly reporting on ticket volume and handling per Finance Rep, now with a customizable date range and a combined per-associate / per-team view.`)}
+  <div class="section">
+    <div class="section-head"><h2>${isFiltered?REPS[STATE.kpi.repFilter].name+'’s performance':'Team performance'}</h2><span class="hint">${kpiRangeLabel(buckets)}</span></div>
+    ${kpiControlsHtml({repFilter:true})}
+    <div class="tiles">
+      ${kpiTile('Received', scopedTotals.received, scopeLabel+', selected period')}
+      ${kpiTile('Resolved', scopedTotals.resolved, scopedTotals.resolvedInRangeCount?'in selected period':'')}
+      ${kpiTile('Currently pending', scopedTotals.pendingNow, isFiltered?'open, assigned to '+REPS[STATE.kpi.repFilter].name:'open across the team', scopedTotals.pendingNow?'accent-warning':'accent-good')}
+      ${kpiTile('Avg. resolution time', scopedTotals.avgResDays!=null? scopedTotals.avgResDays.toFixed(1)+' days':'—')}
+      ${kpiTile('SLA compliance', scopedTotals.slaCompliance!=null? scopedTotals.slaCompliance+'%':'—', 'resolved on time', scopedTotals.slaCompliance!=null && scopedTotals.slaCompliance<80?'accent-critical':'accent-good')}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Received vs. resolved</h2><span class="hint">${isFiltered?REPS[STATE.kpi.repFilter].name:'Whole team'}</span></div>
+    <div class="card card-pad">${groupedBarsHtml(chartSeries)}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Performance per associate</h2><span class="hint">Received, resolved &amp; pending — ${kpiRangeLabel(buckets)}</span></div>
+    ${Object.values(TEAMS).map(team=>{
+      const rows = team.reps.map(rid=>({r:REPS[rid], t:kpiTotals([rid], buckets)}));
+      const teamAgg = kpiTotals(team.reps, buckets);
+      return `
+      <div class="kpi-team-head"><h3>${team.name}</h3><span class="hint">Lead: ${LEAD.name}</span></div>
+      <div class="card">
+        <div class="table-wrap">
+        <table>
+          <thead><tr><th>Associate</th><th>Received</th><th>Resolved</th><th>Pending</th><th>Resolution rate</th><th>Avg. days</th><th>SLA compliance</th></tr></thead>
+          <tbody>
+            ${rows.map(({r,t})=>`
+              <tr ${isFiltered && r.id===STATE.kpi.repFilter?'style="background:var(--accent-soft);"':''}>
+                <td class="row-title">${r.name}</td>
+                <td class="mono">${t.received}</td>
+                <td class="mono">${t.resolved}</td>
+                <td class="mono">${t.pendingNow}</td>
+                <td class="mono">${t.received? Math.round(100*t.resolved/t.received)+'%':'—'}</td>
+                <td class="mono">${t.avgResDays!=null? t.avgResDays.toFixed(1):'—'}</td>
+                <td>${t.slaCompliance!=null?`<span class="pill ${t.slaCompliance>=90?'pill-good':t.slaCompliance>=75?'pill-warning':'pill-critical'}">${t.slaCompliance}%</span>`:'<span class="pill pill-neutral">—</span>'}</td>
+              </tr>`).join('')}
+            <tr class="kpi-total">
+              <td class="row-title">${team.name} total</td>
+              <td class="mono">${teamAgg.received}</td>
+              <td class="mono">${teamAgg.resolved}</td>
+              <td class="mono">${teamAgg.pendingNow}</td>
+              <td class="mono">${teamAgg.received? Math.round(100*teamAgg.resolved/teamAgg.received)+'%':'—'}</td>
+              <td class="mono">${teamAgg.avgResDays!=null? teamAgg.avgResDays.toFixed(1):'—'}</td>
+              <td>${teamAgg.slaCompliance!=null?`<span class="pill ${teamAgg.slaCompliance>=90?'pill-good':teamAgg.slaCompliance>=75?'pill-warning':'pill-critical'}">${teamAgg.slaCompliance}%</span>`:'<span class="pill pill-neutral">—</span>'}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Dispute-reason breakdown</h2><span class="hint">${isFiltered?scopeLabel+' · ':''}${kpiRangeLabel(buckets)}</span></div>
+    <div class="card card-pad">
+      ${reasonList.length? reasonList.map(([label,val])=>`
+        <div class="hbar-row"><div class="hbar-label">${label}</div><div class="hbar-track"><div class="hbar-fill" style="width:${100*val/maxReason}%"></div></div><div class="hbar-val">${val}</div></div>
+      `).join('') : `<div class="empty">No disputes recorded in this period</div>`}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Scheduled reports</h2></div>
+    <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span>Daily tickets-received digest</span><span class="pill pill-good">Active · emailed daily 8:00 AM</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span>Weekly trend report</span><span class="pill pill-good">Active · emailed Monday mornings</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span>Monthly trend & SLA compliance report</span><span class="pill pill-good">Active · emailed 1st of month</span></div>
+    </div>
+  </div>`;
+}
+
+function viewRepKPI(){
+  const rep = REPS[STATE.activeRep];
+  const buckets = getKpiBuckets();
+  const series = kpiSeries([rep.id], buckets);
+  const totals = kpiTotals([rep.id], buckets);
+  const rangeStart = buckets[0].start, rangeEnd = buckets[buckets.length-1].end;
+  const repTickets = TICKETS.filter(t=>t.pic===rep.id);
+  const typeCounts = Object.keys(TYPE_META).map(k=>({key:k, label:TYPE_META[k].label, icon:TYPE_META[k].icon,
+    count: repTickets.filter(t=>t.type===k && t.createdAt>=rangeStart && t.createdAt<=rangeEnd).length}));
+  const maxType = Math.max(1,...typeCounts.map(t=>t.count));
+
+  return `
+  ${introBanner(`This <b>My Performance</b> page implements Section 13.1 of the design doc — a Finance Rep's personal summary of assigned tickets by status and type, with a configurable reporting window.`)}
+  <div class="section">
+    <div class="section-head"><h2>My performance</h2><span class="hint">${rep.name} · ${kpiRangeLabel(buckets)}</span></div>
+    ${kpiControlsHtml({repFilter:false})}
+    <div class="tiles">
+      ${kpiTile('Received', totals.received, 'requests routed to you')}
+      ${kpiTile('Resolved', totals.resolved, totals.resolvedInRangeCount?'in selected period':'')}
+      ${kpiTile('Currently open', totals.pendingNow, 'across all time', totals.pendingNow?'accent-warning':'accent-good')}
+      ${kpiTile('Avg. resolution time', totals.avgResDays!=null? totals.avgResDays.toFixed(1)+' days':'—', totals.resolvedInRangeCount?'across '+totals.resolvedInRangeCount+' resolved':'No resolutions in range')}
+      ${kpiTile('SLA compliance', totals.slaCompliance!=null? totals.slaCompliance+'%':'—', 'resolved on time', totals.slaCompliance!=null && totals.slaCompliance<80?'accent-critical':'accent-good')}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Received vs. resolved</h2><span class="hint">${kpiRangeLabel(buckets)}</span></div>
+    <div class="card card-pad">${groupedBarsHtml(series)}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>By request type</h2><span class="hint">Selected period</span></div>
+    <div class="card card-pad">
+      ${typeCounts.some(t=>t.count>0)? typeCounts.map(t=>`
+        <div class="hbar-row"><div class="hbar-label">${t.icon} ${t.label}</div><div class="hbar-track"><div class="hbar-fill" style="width:${100*t.count/maxType}%"></div></div><div class="hbar-val">${t.count}</div></div>
+      `).join('') : `<div class="empty">No requests in this period</div>`}
+    </div>
+  </div>
+
+  <div class="card card-pad" style="font-size:12px;color:var(--text-faint);">
+    Per the design's role-based access matrix (Section 15.1), Finance Reps see their own performance summary here. Team Leads see full team and per-associate reporting under <b>Reports &amp; KPIs</b>.
+  </div>`;
+}
+
+/* ============================================================
+   CSM / SALES (read-only) VIEWS
+   ============================================================ */
+function viewCsmOverview(){
+  const csm = CSMS[STATE.activeCsm];
+  const myClients = Object.values(CLIENTS).filter(c=>c.csm===csm.id||c.sales===csm.id);
+  return `
+  ${introBanner(`This prototype simulates the <b>read-only CSM/Sales</b> view — billing ticket and invoice status for accounts they own, with the option to leave an internal note for Finance.`)}
+  <div class="section">
+    <div class="section-head"><h2>Your accounts</h2><span class="hint">Read-only — billing status for context, not case handling</span></div>
+    ${myClients.map(c=>{
+      const tickets = ticketsForClient(c.id);
+      const open = openTickets(tickets);
+      return `
+      <div class="card card-pad" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div class="row-title" style="font-size:14.5px;">${c.name}</div>
+            <div class="row-sub">${c.tier} plan · PIC ${REPS[c.pic].name} · ${c.csm===csm.id?'You are CSM':''}${c.csm===csm.id&&c.sales===csm.id?' & Sales':''}${c.sales===csm.id&&c.csm!==csm.id?'You are Sales Rep':''}</div>
+          </div>
+          <span class="pill ${open.length?'pill-warning':'pill-good'}">${open.length} open billing item(s)</span>
+        </div>
+        ${tickets.length?`
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+          ${tickets.slice(0,3).map(t=>`
+            <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-top:1px solid var(--border-soft);">
+              <span>${TYPE_META[t.type].icon} ${esc(t.subject)}</span>
+              <span style="display:flex;gap:6px;">${statusPill(t.status)}${slaPill(t)}</span>
+            </div>`).join('')}
+        </div>` : `<div class="form-hint" style="margin-top:10px;">No billing tickets on file.</div>`}
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <input type="text" id="note-${c.id}" placeholder="Leave an internal note for Finance (not visible to client)..." style="flex:1;">
+          <button class="btn btn-sm" onclick="leaveInternalNote('${c.id}')">Add note</button>
+        </div>
+      </div>`;
+    }).join('') || `<div class="empty">No accounts assigned</div>`}
+  </div>`;
+}
+function leaveInternalNote(clientId){
+  const input = document.getElementById('note-'+clientId);
+  const text = input.value.trim();
+  if(!text) return;
+  INTERNAL_NOTES.push({clientId, author:STATE.activeCsm, at:new Date(), text});
+  input.value='';
+  showToast('Internal note added — visible to Finance only');
+  render();
+}
+
+/* ---------------- Init ---------------- */
+applyHashState();
+render();
+window.addEventListener('hashchange', ()=>{ applyHashState(); render(); });
+</script>
