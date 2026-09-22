@@ -481,6 +481,22 @@ const TYPE_META = {
   general_inquiry:{label:'General Billing Inquiry', icon:'✉️'},
 };
 
+// Late Payment Charge — PLACEHOLDER rate, confirm the real rate/cap with
+// Finance before this is used for anything real.
+const LPC_RATE_PER_DAY = 0.01;
+
+// Payment standing — sample data for the "My Standing" chart. Definition
+// of "good standing" and the actual reward are both still TBD with
+// Finance; this shows the concept only.
+const STANDING_HISTORY = [
+  {month:'Mar 2026', onTime:true},
+  {month:'Apr 2026', onTime:true},
+  {month:'May 2026', onTime:true},
+  {month:'Jun 2026', onTime:false},
+  {month:'Jul 2026', onTime:true},
+  {month:'Aug 2026', onTime:true},
+];
+
 let TICKETS = [
   mkTicket({idOffset:-2, type:'dispute', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'In Progress',
     subject:'Disputed headcount line item on INV-10231', relatedInvoice:'INV-10231',
@@ -629,7 +645,7 @@ const STATE = {
 };
 
 const NAV = {
-  client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'standing',label:'My Standing',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   csm:[{id:'overview',label:'Account Overview',icon:'👁'},{id:'notifications',label:'Notifications',icon:'🔔'}],
@@ -866,6 +882,7 @@ function renderView(){
     if(STATE.view==='invoices') return viewClientInvoices();
     if(STATE.view==='requests') return viewClientRequests();
     if(STATE.view==='payments') return viewClientPayments();
+    if(STATE.view==='standing') return viewClientStanding();
     if(STATE.view==='notifications') return viewNotifications('client');
   }
   if(STATE.role==='rep'){
@@ -1003,6 +1020,7 @@ function viewClientInvoices(){
                 <button class="btn btn-sm" onclick="viewInvoicePDF('${i.id}')">PDF</button>
                 ${i.headcount?`<button class="btn btn-sm" onclick="viewHeadcountCSV('${i.id}')">CSV</button>`:''}
                 ${i.status==='Paid'?`<button class="btn btn-sm" onclick="viewReceipt('${i.id}')">Receipt</button>`:''}
+                ${i.status==='Overdue'?`<button class="btn btn-sm btn-danger-text" onclick="openLpcModal('${i.id}')">⚠ LPC</button>`:''}
               </td>
             </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No invoices match this filter</div></td></tr>`}
         </tbody>
@@ -1013,6 +1031,35 @@ function viewClientInvoices(){
 }
 
 function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
+
+/* ---- LPC (Late Payment Charge) calculator ---- */
+function openLpcModal(invId){
+  openModal(`
+    <div class="modal-head"><div><h3>Late Payment Charge calculator</h3><p>Estimate based on days overdue. Placeholder rate — confirm with Finance.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-field"><label>If you pay on</label><input type="date" id="lpc-date" value="${new Date().toISOString().slice(0,10)}" onchange="updateLpcCalc('${invId}')"></div>
+      <div id="lpc-result"></div>
+      <div class="form-hint">Placeholder rate: 1%/day overdue — confirm the actual rate with Finance before this goes live.</div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Close</button></div>
+  `);
+  updateLpcCalc(invId);
+}
+function updateLpcCalc(invId){
+  const inv = invoiceById(invId);
+  const dateEl = document.getElementById('lpc-date');
+  if(!inv || !dateEl) return;
+  const payDate = new Date(dateEl.value+'T00:00:00');
+  const dueDate = new Date(inv.due.getFullYear(), inv.due.getMonth(), inv.due.getDate());
+  const daysLate = Math.max(0, Math.round((payDate-dueDate)/86400000));
+  const lpc = Math.round(inv.amount*LPC_RATE_PER_DAY*daysLate);
+  const total = inv.amount+lpc;
+  document.getElementById('lpc-result').innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span>Days overdue by that date</span><span class="mono">${daysLate}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span>LPC charge</span><span class="mono">${fmtMoneyShort(lpc)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:1px solid var(--border);padding-top:8px;margin-top:2px;"><span>Total payable</span><span class="mono">${fmtMoneyShort(total)}</span></div>
+  `;
+}
 
 /* ---- Document viewer (PDF / CSV / receipt previews) ---- */
 function openDocPreview(title, subtitle, bodyHtml, downloadName){
@@ -1166,6 +1213,32 @@ function viewClientPayments(){
             <div style="margin-top:5px;">${statusPill(t.status)}</div>
           </div>`).join('') : `<div class="empty">No submissions yet</div>`}
       </div>
+    </div>
+  </div>`;
+}
+
+function viewClientStanding(){
+  const onTimeCount = STANDING_HISTORY.filter(m=>m.onTime).length;
+  const maxBar = 1;
+  return `
+  ${introBanner(`This <b>My Standing</b> page is a concept preview — the exact definition of "good standing" and the reward for it are still to be confirmed with Finance.`)}
+  <div class="section">
+    <div class="section-head"><h2>Payment standing — last 6 months</h2></div>
+    <div class="card card-pad">
+      <div class="bars">
+        ${STANDING_HISTORY.map(m=>`
+          <div class="bar-col">
+            <div class="bar-val">${m.onTime?'On-time':'Late'}</div>
+            <div class="bar-shape" style="height:${m.onTime?'70%':'40%'};background:${m.onTime?'var(--good)':'var(--critical)'};"></div>
+            <div class="bar-label">${m.month.split(' ')[0]}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="card card-pad" style="background:var(--accent-soft);">
+      <div style="font-size:13.5px;font-weight:650;color:var(--accent-strong);">${onTimeCount} of ${STANDING_HISTORY.length} months on-time</div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">Keep it up to unlock a good-standing reward. <i>Exact criteria and the reward itself are still to be confirmed with Finance — this is a placeholder to show the concept.</i></div>
     </div>
   </div>`;
 }
@@ -1445,6 +1518,7 @@ function viewTicketDetail(ticketId, mode){
     ${isStaff?`<div class="detail-meta-item"><div class="k">CSM / Sales</div><div class="v">${CSMS[client.csm].name} / ${CSMS[client.sales].name}</div></div>`:''}
     <div class="detail-meta-item"><div class="k">Related invoice</div><div class="v mono">${t.relatedInvoice||'—'}</div></div>
     <div class="detail-meta-item"><div class="k">SLA due</div><div class="v">${fmtDate(t.slaDue)}</div></div>
+    ${t.type==='proof_of_payment'?`<div class="detail-meta-item"><div class="k">NetSuite posting</div><div class="v">${t.nsCustomerDepositId?`<span class="pill pill-good">Posted · ${t.nsCustomerDepositId}</span>`:`<span class="pill pill-neutral">Not yet posted</span>`}</div></div>`:''}
   </div>
 
   <div class="section-head" style="margin-top:18px;"><h2>What was submitted</h2><span class="hint">By ${esc(t.requester)} · ${fmtDateTime(t.createdAt)}</span></div>
@@ -1460,6 +1534,23 @@ function viewTicketDetail(ticketId, mode){
     </div>
     ${attachmentsList(t)}
   </div>
+
+  ${(isStaff && t.type==='proof_of_payment') ? `
+  <div class="section-head" style="margin-top:18px;"><h2>NetSuite posting</h2><span class="hint">${t.nsCustomerDepositId?'Posted':'Pending approval'}</span></div>
+  <div class="card card-pad">
+    ${t.nsCustomerDepositId ? `
+      <div class="form-hint">✅ Posted to NetSuite as <b class="mono">${t.nsCustomerDepositId}</b> (Customer Deposit).</div>
+    ` : `
+      <div class="form-hint" style="margin-bottom:10px;">Approving this ticket will create the following in NetSuite. Review before approving.</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Record type</label><div style="font-size:13.5px;">Customer Deposit</div></div>
+        <div class="form-field"><label>Customer</label><div style="font-size:13.5px;">${client.name}</div></div>
+        <div class="form-field"><label>Amount</label><div class="mono" style="font-size:13.5px;">${t.amountPaid||'—'}</div></div>
+        <div class="form-field"><label>Payment method</label><div style="font-size:13.5px;">${t.bank||'—'} transfer${t.refNo?' · Ref '+t.refNo:''}</div></div>
+        <div class="form-field full"><label>Memo</label><div style="font-size:13.5px;color:var(--text-muted);">Applied toward ${t.relatedInvoice||'open balance'} for ${client.name}, pending Finance validation.</div></div>
+      </div>
+    `}
+  </div>` : ''}
 
   <div class="two-col" style="margin-top:18px;">
     <div>
@@ -1486,6 +1577,7 @@ function viewTicketDetail(ticketId, mode){
       <div class="section-head"><h2>${isStaff?'Actions':'Status'}</h2></div>
       <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
         ${isStaff ? ((t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
+        ${t.type==='proof_of_payment' ? `<button class="btn btn-primary" onclick="repApprovePosting('${t.id}')">✅ Approve &amp; Post Customer Deposit to NetSuite</button>` : ''}
         <div class="form-field"><label>Add a response</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
         <button class="btn btn-primary" onclick="repRespond('${t.id}')">Send response &amp; set In Progress</button>
         <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
@@ -1612,7 +1704,7 @@ function attachmentPreviewBody(filename, t, client){
       <div><div class="k">Filed</div><div class="v">${fmtDate(t.createdAt)}</div></div>
     </div>
     <div style="font-size:13px;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
-      “${esc(t.details)}”
+      "${esc(t.details)}"
     </div>
     <div class="doc-status">📎 Simulated upload — this prototype doesn't store real files, so the attachment content mirrors what the client described when filing.</div>
   </div>`;
@@ -1644,6 +1736,17 @@ function repResolve(id){
   t.status='Resolved'; t.resolvedAt=new Date();
   NOTIFICATIONS.unshift({id:'N'+t.id+'res'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your request "${t.subject}" was marked Resolved.${text?' Note from '+REPS[t.pic].name+': "'+text+'"':''}`, read:false, ticketId:t.id});
   showToast('Ticket marked Resolved — client notified');
+  render();
+}
+function repApprovePosting(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const depositId = 'CD-' + Math.floor(10000+Math.random()*90000);
+  t.nsCustomerDepositId = depositId;
+  const amt = t.amountPaid ? '₱'+parseMoney(t.amountPaid).toLocaleString('en-PH') : '';
+  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text:`Validated and approved — posted to NetSuite as Customer Deposit ${depositId}${amt?' ('+amt+')':''}.`});
+  t.status='Resolved'; t.resolvedAt=new Date();
+  NOTIFICATIONS.unshift({id:'N'+t.id+'post'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your proof of payment was validated and posted to NetSuite (${depositId}).`, read:false, ticketId:t.id});
+  showToast(`Posted to NetSuite as ${depositId} (simulated — real posting needs the NetSuite connection)`);
   render();
 }
 function repReassign(id){
