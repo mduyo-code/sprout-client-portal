@@ -376,6 +376,20 @@ tr.kpi-total td{font-weight:700;background:var(--surface-2);border-top:2px solid
 <div id="app"></div>
 <div id="modal-root"></div>
 <div id="toast-root"></div>
+<div id="chatbot-fab" onclick="toggleChatbot()" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:var(--shadow);z-index:150;">💬</div>
+<div id="chatbot-panel" style="display:none;position:fixed;bottom:88px;right:24px;width:320px;max-height:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);z-index:150;flex-direction:column;">
+  <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-weight:650;font-size:13px;">🌱 Sprout Assistant</span>
+    <button class="modal-close" onclick="toggleChatbot()">✕</button>
+  </div>
+  <div id="chatbot-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;max-height:280px;">
+    <div style="font-size:11.5px;color:var(--text-faint);"><i>Sample bot — keyword-matched placeholder answers only.</i></div>
+  </div>
+  <div style="padding:10px;border-top:1px solid var(--border);display:flex;gap:6px;">
+    <input type="text" id="chatbot-input" placeholder="Ask a question..." style="flex:1;" onkeydown="if(event.key==='Enter')sendChatbotMessage();">
+    <button class="btn btn-sm btn-primary" onclick="sendChatbotMessage()">Send</button>
+  </div>
+</div>
 
 <script>
 /* ============================================================
@@ -600,7 +614,35 @@ function mkTicket(o){
     comments:o.comments||[],
     attachments:o.attachments||(o.type==='proof_of_payment'?['deposit-slip.jpg']:(o.type==='dispute'?['dispute-support.pdf']:[])),
     reassignedFrom:null,
+    auditLog:[{at:created, actor:o.requester, action:'Ticket filed'}],
   };
+}
+function logAudit(t, action, actor){
+  if(!t.auditLog) t.auditLog=[];
+  t.auditLog.push({at:new Date(), actor, action});
+}
+function whoseTurn(t){
+  if(t.status==='Resolved'||t.status==='Closed') return null;
+  if(t.status==='Pending Client Info') return 'Client';
+  return 'Finance';
+}
+function whoseTurnPill(t){
+  const turn = whoseTurn(t);
+  if(!turn) return '';
+  return `<span class="pill ${turn==='Client'?'pill-warning':'pill-info'}">🎯 ${turn}</span>`;
+}
+
+// Sample FAQ content — placeholder only, replace with your real FAQ library.
+const FAQ_KB = [
+  {q:'How do I check my invoice due date?', a:'Go to Invoices and check the "Due date" column. Overdue invoices are marked in red.', tags:['due date','invoice','when','due']},
+  {q:'What counts as a valid dispute reason?', a:'Common reasons include incorrect headcount, unapproved surcharges, duplicate billing, or rate discrepancies. Attach supporting documents when possible.', tags:['dispute','reason','wrong charge','incorrect']},
+  {q:'How is headcount calculated for billing?', a:'Headcount is based on the approved seat roster for the billing period, cross-checked against the CSV backup attached to each invoice.', tags:['headcount','seats','roster']},
+  {q:'Who do I contact about payment issues?', a:'Submit a Proof of Payment or Billing Inquiry ticket and it will be auto-routed to your assigned Finance rep.', tags:['payment','contact','who','reach']},
+  {q:'How long does a dispute take to resolve?', a:'Disputes typically follow a 3-business-day SLA, tracked automatically once you file the ticket.', tags:['sla','how long','resolve','when']},
+];
+function faqMatch(text){
+  const lower = text.toLowerCase();
+  return FAQ_KB.find(f=>f.tags.some(t=>lower.includes(t)) || lower.includes(f.q.toLowerCase()));
 }
 
 let NOTIFICATIONS = [];
@@ -686,7 +728,7 @@ const ROLE_META = {
 
 function setRole(role){ STATE.role=role; STATE.view=NAV[role][0].id; STATE.activeTicket=null; render(); }
 function setView(view){ STATE.view=view; STATE.activeTicket=null; render(); }
-function openTicket(id){ STATE.activeTicket=id; render(); window.scrollTo({top:0}); }
+function openTicket(id){ STATE.activeTicket=id; STATE._ticketDetailTab='history'; render(); window.scrollTo({top:0}); }
 
 /* ---------------- Personal access links (URL hash routing) ----------------
    Each stakeholder can be handed a link like #role=rep&rep=carlo that opens
@@ -1105,6 +1147,41 @@ function cmStatusPill(status){
 
 function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
 
+/* ---- Chatbot widget (simulated, keyword-matched) ---- */
+function toggleChatbot(){
+  const panel = document.getElementById('chatbot-panel');
+  panel.style.display = panel.style.display==='flex' ? 'none' : 'flex';
+}
+function sendChatbotMessage(){
+  const input = document.getElementById('chatbot-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+  const messages = document.getElementById('chatbot-messages');
+  messages.insertAdjacentHTML('beforeend', `<div style="align-self:flex-end;background:var(--accent-soft);color:var(--accent-strong);padding:7px 10px;border-radius:8px;font-size:12.5px;max-width:85%;">${esc(msg)}</div>`);
+  const match = faqMatch(msg);
+  const reply = match ? match.a : "I couldn't find an answer to that. Want to file a ticket instead?";
+  input.value='';
+  messages.scrollTop = messages.scrollHeight;
+  setTimeout(()=>{
+    messages.insertAdjacentHTML('beforeend', `<div style="align-self:flex-start;background:var(--surface-2);padding:7px 10px;border-radius:8px;font-size:12.5px;max-width:85%;">${esc(reply)}${!match?`<div style="margin-top:6px;"><button class="btn btn-sm" onclick="toggleChatbot();setView('requests');openNewRequestModal();">File a ticket</button></div>`:''}</div>`);
+    messages.scrollTop = messages.scrollHeight;
+  }, 500);
+}
+
+/* ---- FAQ gate (shown before filing certain ticket types) ---- */
+function renderFaqItem(faq){
+  return `<div class="card card-pad faq-item" data-search="${esc((faq.q+' '+faq.tags.join(' ')).toLowerCase())}" style="margin-bottom:8px;">
+    <div style="cursor:pointer;font-weight:600;font-size:13px;" onclick="const a=this.nextElementSibling;a.style.display=a.style.display==='none'?'block':'none';">❓ ${esc(faq.q)}</div>
+    <div style="display:none;font-size:12.5px;color:var(--text-muted);margin-top:8px;">${esc(faq.a)}</div>
+  </div>`;
+}
+function filterFaqList(){
+  const q = (document.getElementById('faq-search').value||'').toLowerCase();
+  document.querySelectorAll('.faq-item').forEach(el=>{
+    el.style.display = el.dataset.search.includes(q) ? 'block' : 'none';
+  });
+}
+
 /* ---- Statement of Account (SOA) — all outstanding balances ---- */
 function generateSOA(){
   const client = CLIENTS[CLIENT_USER.clientId];
@@ -1345,7 +1422,7 @@ function viewClientRequests(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th></tr></thead>
+        <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
         <tbody>
           ${myTickets.length? myTickets.map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -1354,7 +1431,8 @@ function viewClientRequests(){
               <td>${fmtDateShort(t.createdAt)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
-            </tr>`).join('') : `<tr><td colspan="5"><div class="empty">No requests filed yet</div></td></tr>`}
+              <td>${whoseTurnPill(t)}</td>
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No requests filed yet</div></td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1421,6 +1499,7 @@ function markAllRead(role){
 /* ---- New request modal ---- */
 function openNewRequestModal(){
   STATE._reqType = null;
+  STATE._reqFaqPassed = false;
   renderRequestModal();
 }
 function renderRequestModal(){
@@ -1455,16 +1534,28 @@ function renderRequestModal(){
       </div>`,
   };
 
+  const FAQ_GATE_TYPES = ['dispute','headcount','general_inquiry'];
+  const showFaqGate = t && FAQ_GATE_TYPES.includes(t) && !STATE._reqFaqPassed;
+
   const body = !t ? `
     <p style="font-size:13px;color:var(--text-muted);margin:-4px 0 2px;">What is this about?</p>
     <div class="type-grid">
       ${['dispute','service_invoice','headcount','general_inquiry'].map(key=>`
-        <div class="type-card" onclick="STATE._reqType='${key}';renderRequestModal()">
+        <div class="type-card" onclick="STATE._reqType='${key}';STATE._reqFaqPassed=false;renderRequestModal()">
           <div class="ti">${TYPE_META[key].icon}</div>
           <div class="tn">${TYPE_META[key].label}</div>
           <div class="td">${{dispute:'Contest a charge or line item',service_invoice:'New or reissued invoice',headcount:'Fix or clarify billed seats',general_inquiry:'Anything else billing-related'}[key]}</div>
         </div>`).join('')}
     </div>
+  ` : showFaqGate ? `
+    <div style="display:flex;align-items:center;gap:8px;margin:-4px 0 8px;">
+      <span class="pill pill-neutral">${TYPE_META[t].icon} ${TYPE_META[t].label}</span>
+      <button class="btn btn-ghost btn-sm" onclick="STATE._reqType=null;renderRequestModal()">Change type</button>
+    </div>
+    <div class="form-hint" style="margin-bottom:10px;"><i>Sample FAQs shown here — replace with your real FAQ content.</i></div>
+    <div class="search-box" style="margin-bottom:10px;width:100%;"><input type="text" id="faq-search" placeholder="Search FAQs..." oninput="filterFaqList()" style="width:100%;"></div>
+    <div id="faq-list">${FAQ_KB.map(renderFaqItem).join('')}</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="STATE._reqFaqPassed=true;renderRequestModal()">This didn't answer my question — file a ticket</button>
   ` : `
     <div style="display:flex;align-items:center;gap:8px;margin:-4px 0 2px;">
       <span class="pill pill-neutral">${TYPE_META[t].icon} ${TYPE_META[t].label}</span>
@@ -1484,7 +1575,7 @@ function renderRequestModal(){
     <div class="modal-body">${body}</div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      ${t?`<button class="btn btn-primary" onclick="submitNewRequest()">Submit request</button>`:''}
+      ${(t && !showFaqGate)?`<button class="btn btn-primary" onclick="submitNewRequest()">Submit request</button>`:''}
     </div>
   `);
 }
@@ -1509,6 +1600,7 @@ function submitNewRequest(){
     subject, details, relatedInvoice, reason: reason||null, amount: amount||null,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS[t]*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+    auditLog:[{at:new Date(), actor:CLIENT_USER.name, action:'Ticket filed'}],
   };
   TICKETS.unshift(ticket);
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`New ${TYPE_META[t].label.toLowerCase()} filed by ${client.name} — auto-assigned to you.`, read:false, ticketId:ticket.id});
@@ -1645,6 +1737,7 @@ function submitProofOfPayment(){
     relatedInvoice:checked[0]||null, invoicesApplied:checked, creditMemosApplied:checkedCMs, bank, amountPaid: fmtMoney(net), refNo: ref||null, cwt:true,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS.proof_of_payment*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+    auditLog:[{at:new Date(), actor:CLIENT_USER.name, action:'Ticket filed'}],
   };
   TICKETS.unshift(ticket);
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment submitted by ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
@@ -1689,7 +1782,7 @@ function viewRepQueue(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th></tr></thead>
+        <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
         <tbody>
           ${filtered.length? filtered.map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -1699,7 +1792,8 @@ function viewRepQueue(){
               <td>${fmtDateShort(t.createdAt)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
-            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No tickets match this filter</div></td></tr>`}
+              <td>${whoseTurnPill(t)}</td>
+            </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No tickets match this filter</div></td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1730,7 +1824,7 @@ function viewTicketDetail(ticketId, mode){
       <div class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:4px;">${t.id} · ${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</div>
       <h1 style="font-size:19px;">${esc(t.subject)}</h1>
     </div>
-    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}</div>
+    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}${whoseTurnPill(t)}</div>
   </div>
 
   <div class="detail-meta card card-pad">
@@ -1776,8 +1870,13 @@ function viewTicketDetail(ticketId, mode){
 
   <div class="two-col" style="margin-top:18px;">
     <div>
-      <div class="section-head"><h2>History</h2></div>
+      <div class="seg" style="margin-bottom:12px;">
+        <button class="seg-btn ${(STATE._ticketDetailTab||'history')==='history'?'active':''}" onclick="STATE._ticketDetailTab='history';render()">History</button>
+        <button class="seg-btn ${STATE._ticketDetailTab==='responses'?'active':''}" onclick="STATE._ticketDetailTab='responses';render()">Response Trail</button>
+        <button class="seg-btn ${STATE._ticketDetailTab==='audit'?'active':''}" onclick="STATE._ticketDetailTab='audit';render()">Audit Trail</button>
+      </div>
       <div class="card card-pad">
+        ${(STATE._ticketDetailTab||'history')==='history' ? `
         <div class="timeline">
           ${events.map(e=>`
             <div class="timeline-item">
@@ -1788,7 +1887,9 @@ function viewTicketDetail(ticketId, mode){
                 ${e.note?`<div class="timeline-note">${esc(e.note)}</div>`:''}
               </div>
             </div>`).join('')}
-        </div>
+        </div>` : ''}
+        ${STATE._ticketDetailTab==='responses' ? renderResponseTrail(t) : ''}
+        ${STATE._ticketDetailTab==='audit' ? renderAuditTrail(t) : ''}
       </div>
       ${notes.length?`
       <div class="section-head" style="margin-top:18px;"><h2>Internal notes</h2><span class="hint">Visible to Finance only</span></div>
@@ -1827,6 +1928,27 @@ function clientActionsHtml(t){
   }
   return `<div class="form-hint">${REPS[t.pic].name} (your assigned Finance PIC) is reviewing this request. You'll get a notification the moment there's an update.</div>`;
 }
+function renderResponseTrail(t){
+  if(!t.comments.length) return `<div class="empty">No responses yet — replying here only goes between this client and their assigned Finance rep, not to anyone else on the original email.</div>`;
+  return t.comments.map((c,i)=>`
+    <div style="display:flex;gap:10px;padding:10px 0;${i>0?'border-top:1px solid var(--border-soft);':''}">
+      <div style="width:3px;background:${c.role==='client'?'var(--info)':'var(--accent)'};border-radius:2px;flex:0 0 auto;"></div>
+      <div style="flex:1;">
+        <div style="font-size:12.5px;font-weight:650;">${esc(c.author)} ${c.role==='client'?'<span class="pill pill-info">Client</span>':'<span class="pill pill-good">Finance</span>'}</div>
+        <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:4px;">${fmtDateTime(c.at)}</div>
+        <div style="font-size:13px;color:var(--text-muted);">${esc(c.text)}</div>
+      </div>
+    </div>`).join('');
+}
+function renderAuditTrail(t){
+  const log = t.auditLog||[];
+  if(!log.length) return `<div class="empty">No audit events yet.</div>`;
+  return log.map(e=>`
+    <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;">
+      <span>${esc(e.action)}</span>
+      <span style="color:var(--text-faint);white-space:nowrap;">${esc(e.actor)} · ${fmtDateTime(e.at)}</span>
+    </div>`).join('');
+}
 function clientReply(id){
   const t = TICKETS.find(x=>x.id===id);
   const el = document.getElementById('client-reply-text');
@@ -1834,6 +1956,7 @@ function clientReply(id){
   if(!text){ showToast('Add a message before sending.'); return; }
   t.comments.push({author:CLIENT_USER.name, role:'client', at:new Date(), text});
   t.status='In Progress';
+  logAudit(t, 'Status changed to In Progress (client replied)', CLIENT_USER.name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'creply'+Date.now(), for:{type:'rep',id:t.pic}, at:new Date(), text:`${CLIENT_USER.name} replied on "${t.subject}" with the requested info.`, read:false, ticketId:t.id});
   showToast('Reply sent to '+REPS[t.pic].name);
   render();
@@ -1937,6 +2060,7 @@ function repRespond(id){
   const text = document.getElementById('resp-text').value.trim();
   t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text||'(followed up with the client)'});
   t.status='In Progress';
+  logAudit(t, 'Status changed to In Progress', REPS[t.pic].name);
   showToast('Response sent — status set to In Progress');
   render();
 }
@@ -1946,6 +2070,7 @@ function repRequestInfo(id){
   const text = el ? el.value.trim() : '';
   t.status='Pending Client Info';
   t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text || 'Requested more information from the client. SLA clock paused until they respond.'});
+  logAudit(t, 'Status changed to Pending Client Info', REPS[t.pic].name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'info'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`${REPS[t.pic].name} needs more info on "${t.subject}": "${text || 'Please provide additional details.'}"`, read:false, ticketId:t.id});
   showToast('Marked Pending Client Info — SLA clock paused, client notified');
   render();
@@ -1956,6 +2081,7 @@ function repResolve(id){
   const text = el ? el.value.trim() : '';
   if(text) t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text});
   t.status='Resolved'; t.resolvedAt=new Date();
+  logAudit(t, 'Status changed to Resolved', REPS[t.pic].name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'res'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your request "${t.subject}" was marked Resolved.${text?' Note from '+REPS[t.pic].name+': "'+text+'"':''}`, read:false, ticketId:t.id});
   showToast('Ticket marked Resolved — client notified');
   render();
@@ -1973,6 +2099,7 @@ function repApprovePosting(id){
   }
   t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text:`Validated and approved — posted to NetSuite as Customer Deposit ${depositId}${amt?' ('+amt+')':''}.${t.creditMemosApplied&&t.creditMemosApplied.length?' Credit memo(s) '+t.creditMemosApplied.join(', ')+' marked Applied.':''}`});
   t.status='Resolved'; t.resolvedAt=new Date();
+  logAudit(t, `Approved & posted to NetSuite (${depositId})`, REPS[t.pic].name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'post'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your proof of payment was validated and posted to NetSuite (${depositId}).`, read:false, ticketId:t.id});
   showToast(`Posted to NetSuite as ${depositId} (simulated — real posting needs the NetSuite connection)`);
   render();
@@ -1983,6 +2110,7 @@ function repReassign(id){
   const from = t.pic;
   t.reassignedFrom = from;
   t.pic = target;
+  logAudit(t, `Reassigned from ${REPS[from].name} to ${REPS[target].name}`, REPS[from].name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'reassign', for:{type:'rep',id:target}, at:new Date(), text:`Ticket "${t.subject}" was reassigned to you from ${REPS[from].name}.`, read:false, ticketId:t.id});
   showToast(`Reassigned to ${REPS[target].name}`);
   STATE.activeTicket=null;
@@ -2154,7 +2282,7 @@ function viewLeadTeam(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Client</th><th>PIC</th><th>Type</th><th>Subject</th><th>Status</th><th>SLA</th></tr></thead>
+        <thead><tr><th>Client</th><th>PIC</th><th>Type</th><th>Subject</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
         <tbody>
           ${TICKETS.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,12).map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -2164,6 +2292,7 @@ function viewLeadTeam(){
               <td class="wrap">${esc(t.subject)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
+              <td>${whoseTurnPill(t)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -2211,6 +2340,7 @@ function leadReassign(id){
   const target = document.getElementById('reassign-'+id).value;
   const from = t.pic;
   t.reassignedFrom = from; t.pic = target;
+  logAudit(t, `Reassigned from ${REPS[from].name} to ${REPS[target].name}`, LEAD.name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'lreassign', for:{type:'rep',id:target}, at:new Date(), text:`Ticket "${t.subject}" was reassigned to you by Angela Tan (Team Lead).`, read:false, ticketId:t.id});
   showToast(`Reassigned "${t.subject}" to ${REPS[target].name}`);
   render();
