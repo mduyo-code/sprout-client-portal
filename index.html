@@ -473,6 +473,12 @@ const INVOICES = [
   {id:'INV-10255', clientId:'meridian', period:'Aug 2026', amount:495750, issued:d(-6), due:d(9), status:'Open', headcount:true},
 ];
 
+const CREDIT_MEMOS = [
+  {id:'CM-3001', clientId:'meridian', reason:'Service credit — Q2 SLA rebate', amount:15000, issued:d(-40), status:'Open', appliedTo:null},
+  {id:'CM-3002', clientId:'meridian', reason:'Overbilled headcount adjustment — May 2026', amount:8200, issued:d(-55), status:'Applied', appliedTo:'INV-10212'},
+  {id:'CM-3003', clientId:'meridian', reason:'Goodwill credit — service outage Jun 2026', amount:5000, issued:d(-25), status:'Open', appliedTo:null},
+];
+
 const SLA_DAYS = {dispute:3, service_invoice:2, headcount:2, proof_of_payment:1, general_inquiry:2};
 const TYPE_META = {
   dispute:{label:'Invoice Dispute', icon:'⚖️'},
@@ -1002,6 +1008,8 @@ function recentActivityRows(tickets){
 }
 
 function viewClientInvoices(){
+  const tab = STATE._invTab||'invoices';
+  STATE._invTab = tab;
   const f = STATE._invFilter||{status:'all', q:'', period:'all', from:'', to:''};
   STATE._invFilter=f;
   const periods = [...new Set(INVOICES.map(i=>i.period))];
@@ -1013,6 +1021,7 @@ function viewClientInvoices(){
     if(f.q && !i.id.toLowerCase().includes(f.q.toLowerCase()) && !i.period.toLowerCase().includes(f.q.toLowerCase())) return false;
     return true;
   }).sort((a,b)=>b.issued-a.issued);
+  const creditMemos = CREDIT_MEMOS.filter(cm=>cm.clientId===CLIENT_USER.clientId).sort((a,b)=>b.issued-a.issued);
 
   return `
   <div class="section">
@@ -1024,6 +1033,11 @@ function viewClientInvoices(){
         <button class="btn btn-primary btn-sm" onclick="openProofOfPaymentModal()">💳 Upload Payment</button>
       </div>
     </div>
+    <div class="seg" style="margin-bottom:14px;">
+      <button class="seg-btn ${tab==='invoices'?'active':''}" onclick="STATE._invTab='invoices';render()">Invoices</button>
+      <button class="seg-btn ${tab==='creditmemos'?'active':''}" onclick="STATE._invTab='creditmemos';render()">Credit Memos</button>
+    </div>
+    ${tab==='invoices' ? `
     <div class="filters">
       <div class="field"><label>Status</label>
         <select onchange="STATE._invFilter.status=this.value;render()">
@@ -1064,8 +1078,29 @@ function viewClientInvoices(){
         </tbody>
       </table>
       </div>
-    </div>
+    </div>` : `
+    <div class="card">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Credit Memo</th><th>Reason</th><th>Amount</th><th>Issued</th><th>Status</th><th>Applied to</th></tr></thead>
+        <tbody>
+          ${creditMemos.length? creditMemos.map(cm=>`
+            <tr>
+              <td class="mono row-title">${cm.id}</td>
+              <td class="wrap">${esc(cm.reason)}</td>
+              <td class="mono">${fmtMoney(cm.amount)}</td>
+              <td>${fmtDate(cm.issued)}</td>
+              <td>${cmStatusPill(cm.status)}</td>
+              <td class="mono">${cm.appliedTo||'—'}</td>
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No credit memos on file</div></td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>`}
   </div>`;
+}
+function cmStatusPill(status){
+  return status==='Applied' ? `<span class="pill pill-neutral"><span class="dot"></span>Applied</span>` : `<span class="pill pill-info"><span class="dot"></span>Open</span>`;
 }
 
 function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
@@ -1487,6 +1522,7 @@ function submitNewRequest(){
 let pop2307Files = [];
 function openProofOfPaymentModal(){
   const unpaid = INVOICES.filter(i=>i.status!=='Paid');
+  const openCMs = CREDIT_MEMOS.filter(cm=>cm.clientId===CLIENT_USER.clientId && cm.status==='Open');
   pop2307Files = [];
   openModal(`
     <div class="modal-head"><div><h3>Submit proof of payment</h3><p>For reconciliation against ${CLIENTS[CLIENT_USER.clientId].name}’s NetSuite account.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -1504,6 +1540,12 @@ function openProofOfPaymentModal(){
               ${unpaid.map(i=>`<label><input type="checkbox" name="p-inv" value="${i.id}" data-amount="${i.amount}" onchange="updatePopCalc()">${i.id} — ${i.period} (${fmtMoneyShort(i.amount)})</label>`).join('') || '<span class="form-hint">No open invoices to apply to.</span>'}
             </div>
           </div>
+          ${openCMs.length ? `
+          <div class="form-field full"><label>Apply open Credit Memo(s)</label>
+            <div class="invoice-check-list">
+              ${openCMs.map(cm=>`<label><input type="checkbox" name="p-cm" value="${cm.id}" data-amount="${cm.amount}" onchange="updatePopCalc()">${cm.id} — ${esc(cm.reason)} (−${fmtMoneyShort(cm.amount)})</label>`).join('')}
+            </div>
+          </div>` : ''}
           <div class="form-field full">
             <label>Proof of payment <span style="color:var(--critical);">*</span></label>
             <div class="file-drop" id="p-proof-file" onclick="this.classList.add('has-file');this.textContent='📎 deposit-slip.jpg attached'">Click to attach bank transfer slip / deposit slip / receipt (required)</div>
@@ -1565,7 +1607,10 @@ function simulatePop2307Read(){
 }
 function updatePopCalc(){
   const checked = Array.from(document.querySelectorAll('input[name=p-inv]:checked'));
-  const selectedTotal = checked.reduce((s,el)=>s+parseFloat(el.dataset.amount),0);
+  const checkedCMs = Array.from(document.querySelectorAll('input[name=p-cm]:checked'));
+  const invoiceTotal = checked.reduce((s,el)=>s+parseFloat(el.dataset.amount),0);
+  const cmTotal = checkedCMs.reduce((s,el)=>s+parseFloat(el.dataset.amount),0);
+  const selectedTotal = invoiceTotal-cmTotal;
   const gross = parseMoney(document.getElementById('p-gross')?.value||'0');
   const tax = parseMoney(document.getElementById('p-tax')?.value||'0');
   const net = gross-tax;
@@ -1573,7 +1618,8 @@ function updatePopCalc(){
   const body = document.getElementById('pop-calc-body');
   if(!body) return;
   body.innerHTML = `
-    <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-top:1px solid var(--border);"><span>Selected invoices</span><span class="mono">${fmtMoneyShort(selectedTotal)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-top:1px solid var(--border);"><span>Selected invoices</span><span class="mono">${fmtMoneyShort(invoiceTotal)}</span></div>
+    ${cmTotal>0?`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;"><span>Less: Credit memos applied</span><span class="mono">−${fmtMoneyShort(cmTotal)}</span></div>`:''}
     <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:6px 0;border-top:1px solid var(--border);"><span>Net amount</span><span class="mono">${fmtMoneyShort(net)}</span></div>
     ${variance!==0 ? `<div class="banner" style="margin:8px 0 0;padding:8px 10px;"><span>⚠️</span><div style="font-size:12px;">Net amount doesn't match selected invoices — variance of <b>${fmtMoneyShort(Math.abs(variance))}</b>.</div></div>` : `<div class="form-hint" style="margin-top:6px;color:var(--good);">✓ Matches selected invoices.</div>`}
   `;
@@ -1586,6 +1632,7 @@ function submitProofOfPayment(){
   const tax = parseMoney(document.getElementById('p-tax').value);
   const net = gross-tax;
   const checked = Array.from(document.querySelectorAll('input[name=p-inv]:checked')).map(el=>el.value);
+  const checkedCMs = Array.from(document.querySelectorAll('input[name=p-cm]:checked')).map(el=>el.value);
   const client = CLIENTS[CLIENT_USER.clientId];
   const hasProof = document.getElementById('p-proof-file').classList.contains('has-file');
   if(!hasProof){ showToast('Proof of payment attachment is required.'); return; }
@@ -1594,8 +1641,8 @@ function submitProofOfPayment(){
   const ticket = {
     id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
     subject:`Proof of payment — ${checked.join(', ')||'unapplied'}`,
-    details:`Bank transfer submitted via ${bank}${date?' on '+fmtDate(new Date(date+'T00:00:00')):''}. Awaiting Finance reconciliation against NetSuite.`,
-    relatedInvoice:checked[0]||null, invoicesApplied:checked, bank, amountPaid: fmtMoney(net), refNo: ref||null, cwt:true,
+    details:`Bank transfer submitted via ${bank}${date?' on '+fmtDate(new Date(date+'T00:00:00')):''}. Awaiting Finance reconciliation against NetSuite.${checkedCMs.length?' Client also applied credit memo(s): '+checkedCMs.join(', ')+'.':''}`,
+    relatedInvoice:checked[0]||null, invoicesApplied:checked, creditMemosApplied:checkedCMs, bank, amountPaid: fmtMoney(net), refNo: ref||null, cwt:true,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS.proof_of_payment*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
   };
@@ -1918,7 +1965,13 @@ function repApprovePosting(id){
   const depositId = 'CD-' + Math.floor(10000+Math.random()*90000);
   t.nsCustomerDepositId = depositId;
   const amt = t.amountPaid ? '₱'+parseMoney(t.amountPaid).toLocaleString('en-PH') : '';
-  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text:`Validated and approved — posted to NetSuite as Customer Deposit ${depositId}${amt?' ('+amt+')':''}.`});
+  if(t.creditMemosApplied && t.creditMemosApplied.length){
+    t.creditMemosApplied.forEach(cmId=>{
+      const cm = CREDIT_MEMOS.find(c=>c.id===cmId);
+      if(cm){ cm.status='Applied'; cm.appliedTo = t.relatedInvoice || cm.appliedTo; }
+    });
+  }
+  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text:`Validated and approved — posted to NetSuite as Customer Deposit ${depositId}${amt?' ('+amt+')':''}.${t.creditMemosApplied&&t.creditMemosApplied.length?' Credit memo(s) '+t.creditMemosApplied.join(', ')+' marked Applied.':''}`});
   t.status='Resolved'; t.resolvedAt=new Date();
   NOTIFICATIONS.unshift({id:'N'+t.id+'post'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your proof of payment was validated and posted to NetSuite (${depositId}).`, read:false, ticketId:t.id});
   showToast(`Posted to NetSuite as ${depositId} (simulated — real posting needs the NetSuite connection)`);
