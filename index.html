@@ -171,6 +171,7 @@ a{color:var(--accent-strong);}
 .main{padding:24px 28px 60px;max-width:1180px;width:100%;margin:0 auto;}
 .view-fade{animation:fadeIn .18s ease-out;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+@keyframes pulseGift{0%,100%{box-shadow:0 0 0 0 rgba(46,125,79,.35);}50%{box-shadow:0 0 0 8px rgba(46,125,79,0);}}
 
 /* ---------- Building blocks ---------- */
 .banner{
@@ -492,10 +493,30 @@ const STANDING_HISTORY = [
   {month:'Mar 2026', onTime:true},
   {month:'Apr 2026', onTime:true},
   {month:'May 2026', onTime:true},
-  {month:'Jun 2026', onTime:false},
+  {month:'Jun 2026', onTime:true},
   {month:'Jul 2026', onTime:true},
   {month:'Aug 2026', onTime:true},
 ];
+
+// Milestone stages for the Good Standing Journey, shown on the client
+// dashboard. Growth-themed to match the Sprout brand; final stage is the
+// gift box reward. Reward content itself is still TBD with Finance.
+const MILESTONE_STAGES = [
+  {icon:'🌰', label:'Planted'},
+  {icon:'🌱', label:'Sprouted'},
+  {icon:'🌿', label:'Growing'},
+  {icon:'🪴', label:'Flourishing'},
+  {icon:'🌳', label:'Thriving'},
+  {icon:'🎁', label:'Harvest!'},
+];
+function getStandingStreak(){
+  let streak = 0;
+  for(let i=STANDING_HISTORY.length-1;i>=0;i--){
+    if(STANDING_HISTORY[i].onTime) streak++;
+    else break;
+  }
+  return Math.min(streak, MILESTONE_STAGES.length);
+}
 
 let TICKETS = [
   mkTicket({idOffset:-2, type:'dispute', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'In Progress',
@@ -645,7 +666,7 @@ const STATE = {
 };
 
 const NAV = {
-  client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'standing',label:'My Standing',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   csm:[{id:'overview',label:'Account Overview',icon:'👁'},{id:'notifications',label:'Notifications',icon:'🔔'}],
@@ -882,7 +903,6 @@ function renderView(){
     if(STATE.view==='invoices') return viewClientInvoices();
     if(STATE.view==='requests') return viewClientRequests();
     if(STATE.view==='payments') return viewClientPayments();
-    if(STATE.view==='standing') return viewClientStanding();
     if(STATE.view==='notifications') return viewNotifications('client');
   }
   if(STATE.role==='rep'){
@@ -938,6 +958,8 @@ function viewClientDashboard(){
       <button class="btn" onclick="setView('invoices')">🧾 View invoices</button>
     </div>
   </div>
+
+  ${renderMilestoneTrack()}
 
   <div class="two-col">
     <div class="section" style="margin-bottom:0;">
@@ -1031,6 +1053,50 @@ function viewClientInvoices(){
 }
 
 function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
+
+/* ---- Good Standing Journey (milestone track on the client dashboard) ---- */
+function renderMilestoneTrack(){
+  const streak = getStandingStreak();
+  const total = MILESTONE_STAGES.length;
+  const unlocked = streak>=total;
+  return `
+  <div class="section">
+    <div class="section-head"><h2>🌱 Good Standing Journey</h2><span class="hint">${streak} of ${total} consecutive on-time months</span></div>
+    <div class="card card-pad">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;padding:8px 4px;">
+        ${MILESTONE_STAGES.map((s,i)=>{
+          const achieved = i < streak;
+          const isGift = i===total-1;
+          const clickable = isGift && unlocked;
+          return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;position:relative;">
+            ${i>0?`<div style="position:absolute;top:23px;right:50%;width:100%;height:3px;background:${achieved?'var(--accent)':'var(--border)'};z-index:0;"></div>`:''}
+            <div ${clickable?`onclick="openGiftReward()" title="Click to open!"`:''} style="position:relative;z-index:1;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:${achieved?'var(--accent-soft)':'var(--surface-2)'};border:2px solid ${achieved?'var(--accent)':'var(--border)'};${clickable?'cursor:pointer;animation:pulseGift 1.6s ease-in-out infinite;':''}">
+              ${achieved?s.icon:(isGift?'🔒':'⚪')}
+            </div>
+            <div style="font-size:10.5px;font-weight:${achieved?'650':'500'};color:${achieved?'var(--text)':'var(--text-faint)'};margin-top:6px;text-align:center;">${s.label}</div>
+            <div style="font-size:9.5px;color:var(--text-faint);">Month ${i+1}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${unlocked
+        ? `<div class="form-hint" style="text-align:center;margin-top:10px;">🎉 Reward unlocked — click the gift box above to open it!</div>`
+        : `<div class="form-hint" style="text-align:center;margin-top:10px;">${total-streak} more consecutive on-time month${total-streak===1?'':'s'} to unlock your reward.</div>`}
+      <div class="form-hint" style="text-align:center;margin-top:4px;"><i>Sample data for this demo — exact "good standing" criteria and the reward itself are still to be confirmed with Finance.</i></div>
+    </div>
+  </div>`;
+}
+function openGiftReward(){
+  openModal(`
+    <div class="modal-head"><div><h3>🎉 Congratulations!</h3><p>6 consecutive months of good standing</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="text-align:center;padding:10px 0 20px;">
+      <div style="font-size:56px;">🎁</div>
+      <p style="font-size:14px;font-weight:650;margin-top:10px;">You've earned a good-standing reward!</p>
+      <p class="form-hint" style="margin-top:8px;">Exact reward details are still being finalized by Finance — check back soon, or reach out to your Finance rep for more info.</p>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" style="width:100%;" onclick="closeModal()">Nice!</button></div>
+  `);
+}
 
 /* ---- LPC (Late Payment Charge) calculator ---- */
 function openLpcModal(invId){
@@ -1213,32 +1279,6 @@ function viewClientPayments(){
             <div style="margin-top:5px;">${statusPill(t.status)}</div>
           </div>`).join('') : `<div class="empty">No submissions yet</div>`}
       </div>
-    </div>
-  </div>`;
-}
-
-function viewClientStanding(){
-  const onTimeCount = STANDING_HISTORY.filter(m=>m.onTime).length;
-  const maxBar = 1;
-  return `
-  ${introBanner(`This <b>My Standing</b> page is a concept preview — the exact definition of "good standing" and the reward for it are still to be confirmed with Finance.`)}
-  <div class="section">
-    <div class="section-head"><h2>Payment standing — last 6 months</h2></div>
-    <div class="card card-pad">
-      <div class="bars">
-        ${STANDING_HISTORY.map(m=>`
-          <div class="bar-col">
-            <div class="bar-val">${m.onTime?'On-time':'Late'}</div>
-            <div class="bar-shape" style="height:${m.onTime?'70%':'40%'};background:${m.onTime?'var(--good)':'var(--critical)'};"></div>
-            <div class="bar-label">${m.month.split(' ')[0]}</div>
-          </div>`).join('')}
-      </div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="card card-pad" style="background:var(--accent-soft);">
-      <div style="font-size:13.5px;font-weight:650;color:var(--accent-strong);">${onTimeCount} of ${STANDING_HISTORY.length} months on-time</div>
-      <div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">Keep it up to unlock a good-standing reward. <i>Exact criteria and the reward itself are still to be confirmed with Finance — this is a placeholder to show the concept.</i></div>
     </div>
   </div>`;
 }
