@@ -287,6 +287,13 @@ textarea{resize:vertical;min-height:70px;}
 .timeline-time{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
 .timeline-note{font-size:13px;color:var(--text-muted);margin-top:4px;}
 .timeline-note.internal{background:var(--warning-soft);color:var(--warning);padding:6px 9px;border-radius:6px;display:inline-block;}
+.trail{display:flex;flex-direction:column;gap:0;margin-top:4px;}
+.trail-item{display:flex;gap:12px;padding:12px 0;position:relative;}
+.trail-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 auto;position:relative;z-index:1;}
+.trail-item:not(:last-child) .trail-dot::after{content:'';position:absolute;top:9px;left:50%;transform:translateX(-50%);width:2px;height:calc(100% + 12px);background:var(--border);}
+.trail-body b{font-size:13px;}
+.trail-time{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+.trail-text{font-size:13px;color:var(--text-muted);margin-top:4px;}
 
 /* chart bits */
 .bars{display:flex;align-items:flex-end;gap:10px;height:120px;padding-top:16px;}
@@ -488,9 +495,9 @@ const INVOICES = [
 ];
 
 const CREDIT_MEMOS = [
-  {id:'CM-3001', clientId:'meridian', reason:'Service credit — Q2 SLA rebate', amount:15000, issued:d(-40), status:'Open', appliedTo:null},
-  {id:'CM-3002', clientId:'meridian', reason:'Overbilled headcount adjustment — May 2026', amount:8200, issued:d(-55), status:'Applied', appliedTo:'INV-10212'},
-  {id:'CM-3003', clientId:'meridian', reason:'Goodwill credit — service outage Jun 2026', amount:5000, issued:d(-25), status:'Open', appliedTo:null},
+  {id:'CM-3001', clientId:'meridian', reason:'Service credit — Q2 SLA rebate', tag:'Rebate', amount:15000, issued:d(-40), status:'Open', appliedTo:null},
+  {id:'CM-3002', clientId:'meridian', reason:'Overbilled headcount adjustment — May 2026', tag:'Overpayment', amount:8200, issued:d(-55), status:'Applied', appliedTo:'INV-10212'},
+  {id:'CM-3003', clientId:'meridian', reason:'Goodwill credit — service outage Jun 2026', tag:'Goodwill', amount:5000, issued:d(-25), status:'Open', appliedTo:null},
 ];
 
 const SLA_DAYS = {dispute:3, service_invoice:2, headcount:2, proof_of_payment:1, general_inquiry:2};
@@ -556,11 +563,16 @@ let TICKETS = [
     details:'BlueWave shifted billing to their new legal entity (BlueWave CX Corp.) starting August — requesting the invoice be reissued under the new entity name and TIN.',
     attachments:['entity-change-request.pdf'],
     comments:[{author:'Carlo Reyes', role:'pic', at:d(-3,1), text:'Need the updated BIR Form 2303 for the new entity before we can reissue — following up with the client.'}]}),
-  mkTicket({idOffset:0, type:'headcount', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'New',
+  mkTicket({idOffset:0, type:'headcount', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'In Progress',
     subject:'Clarify headcount count used for August invoice', relatedInvoice:'INV-10255',
     reason:'Clarification',
     details:'The headcount CSV for INV-10255 lists 214 billable seats — our internal roster shows 211. Please clarify the 3-seat difference before we process payment.',
-    attachments:['headcount-notes.pdf']}),
+    attachments:['headcount-notes.pdf'],
+    comments:[
+      {author:'Carlo Reyes', role:'pic', at:d(0,-3), text:'Thanks for flagging — let me check the headcount CSV against your roster and get back to you.'},
+      {author:'Ana Lim', role:'client', at:d(0,-2), text:'Sure, also note that 2 of those seats were terminated last week — not sure if that is reflected yet.'},
+      {author:'Carlo Reyes', role:'pic', at:d(0,-1), text:'Good catch — confirmed the 3-seat gap includes those 2 terminations plus 1 pending offboarding. I will adjust the invoice and send an updated CSV.'},
+    ]}),
   mkTicket({idOffset:0, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'New',
     subject:'Proof of payment — INV-10212 balance', relatedInvoice:'INV-10212',
     bank:'BDO', refNo:'TX-88213', amountPaid:'₱476,800.00', cwt:true,
@@ -1054,6 +1066,8 @@ function viewClientInvoices(){
   STATE._invTab = tab;
   const f = STATE._invFilter||{status:'all', q:'', period:'all', from:'', to:''};
   STATE._invFilter=f;
+  const cf = STATE._cmFilter||{status:'all', from:'', to:''};
+  STATE._cmFilter=cf;
   const periods = [...new Set(INVOICES.map(i=>i.period))];
   let list = INVOICES.filter(i=>{
     if(f.status!=='all' && i.status!==f.status) return false;
@@ -1063,7 +1077,13 @@ function viewClientInvoices(){
     if(f.q && !i.id.toLowerCase().includes(f.q.toLowerCase()) && !i.period.toLowerCase().includes(f.q.toLowerCase())) return false;
     return true;
   }).sort((a,b)=>b.issued-a.issued);
-  const creditMemos = CREDIT_MEMOS.filter(cm=>cm.clientId===CLIENT_USER.clientId).sort((a,b)=>b.issued-a.issued);
+  const creditMemos = CREDIT_MEMOS.filter(cm=>{
+    if(cm.clientId!==CLIENT_USER.clientId) return false;
+    if(cf.status!=='all' && cm.status!==cf.status) return false;
+    if(cf.from && cm.issued < new Date(cf.from+'T00:00:00')) return false;
+    if(cf.to && cm.issued > new Date(cf.to+'T23:59:59')) return false;
+    return true;
+  }).sort((a,b)=>b.issued-a.issued);
 
   return `
   <div class="section">
@@ -1121,20 +1141,30 @@ function viewClientInvoices(){
       </table>
       </div>
     </div>` : `
+    <div class="filters">
+      <div class="field"><label>Status</label>
+        <select onchange="STATE._cmFilter.status=this.value;render()">
+          ${['all','Open','Applied'].map(s=>`<option value="${s}" ${cf.status===s?'selected':''}>${s==='all'?'All statuses':s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Issued from</label><input type="date" value="${cf.from}" onchange="STATE._cmFilter.from=this.value;render()"></div>
+      <div class="field"><label>Issued to</label><input type="date" value="${cf.to}" onchange="STATE._cmFilter.to=this.value;render()"></div>
+    </div>
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Credit Memo</th><th>Reason</th><th>Amount</th><th>Issued</th><th>Status</th><th>Applied to</th></tr></thead>
+        <thead><tr><th>Credit Memo</th><th>Description</th><th>Memo Tag</th><th>Amount</th><th>Issued</th><th>Status</th><th>Applied to</th></tr></thead>
         <tbody>
           ${creditMemos.length? creditMemos.map(cm=>`
             <tr>
               <td class="mono row-title">${cm.id}</td>
               <td class="wrap">${esc(cm.reason)}</td>
+              <td>${cmTagPill(cm.tag)}</td>
               <td class="mono">${fmtMoney(cm.amount)}</td>
               <td>${fmtDate(cm.issued)}</td>
               <td>${cmStatusPill(cm.status)}</td>
               <td class="mono">${cm.appliedTo||'—'}</td>
-            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No credit memos on file</div></td></tr>`}
+            </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No credit memos match this filter</div></td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1143,6 +1173,10 @@ function viewClientInvoices(){
 }
 function cmStatusPill(status){
   return status==='Applied' ? `<span class="pill pill-neutral"><span class="dot"></span>Applied</span>` : `<span class="pill pill-info"><span class="dot"></span>Open</span>`;
+}
+function cmTagPill(tag){
+  const map = {'Overpayment':'pill-warning', 'Rebate':'pill-info', 'Goodwill':'pill-good', 'Adjustment':'pill-neutral'};
+  return `<span class="pill ${map[tag]||'pill-neutral'}"><span class="dot"></span>${esc(tag||'—')}</span>`;
 }
 
 function mockDownload(name){ showToast(`Downloading ${name} (simulated)`); }
@@ -1643,7 +1677,8 @@ function openProofOfPaymentModal(){
             <div class="file-drop" id="p-proof-file" onclick="this.classList.add('has-file');this.textContent='📎 deposit-slip.jpg attached'">Click to attach bank transfer slip / deposit slip / receipt (required)</div>
           </div>
           <div class="form-field full">
-            <label>BIR Form 2307 <span style="color:var(--critical);">*</span></label>
+            <label>BIR Form 2307 <span id="p-2307-req-mark" style="color:var(--critical);">*</span></label>
+            <div class="form-hint" style="margin:-2px 0 6px;">Required only if tax withheld (WHT) is greater than ₱0.</div>
             <div id="p-2307-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
             <button class="btn btn-sm" onclick="addPop2307File()">+ Add 2307 file</button>
           </div>
@@ -1651,7 +1686,7 @@ function openProofOfPaymentModal(){
         <div>
           <div class="card card-pad" style="position:sticky;top:0;">
             <p style="font-weight:650;font-size:13px;margin-bottom:10px;">🧮 Payment calculator</p>
-            <div class="form-field"><label>Gross amount</label><input type="text" id="p-gross" placeholder="₱ 0.00" oninput="updatePopCalc()"></div>
+            <div class="form-field"><label>Collection amount</label><input type="text" id="p-gross" placeholder="₱ 0.00" oninput="updatePopCalc()"></div>
             <div class="form-field"><label>Tax withheld (2307)</label><input type="text" id="p-tax" placeholder="₱ 0.00" oninput="updatePopCalc()"></div>
             <div id="pop-calc-body" style="margin-top:6px;"></div>
           </div>
@@ -1707,13 +1742,23 @@ function updatePopCalc(){
   const tax = parseMoney(document.getElementById('p-tax')?.value||'0');
   const net = gross-tax;
   const variance = Math.round(net-selectedTotal);
+  const reqMark = document.getElementById('p-2307-req-mark');
+  if(reqMark) reqMark.style.display = tax>0 ? 'inline' : 'none';
   const body = document.getElementById('pop-calc-body');
   if(!body) return;
+  let varianceHtml;
+  if(variance>0){
+    varianceHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--critical-soft);border-color:var(--critical);"><span>⚠️</span><div style="font-size:12px;color:var(--critical);">Overpayment of <b>${fmtMoneyShort(variance)}</b> versus selected invoices.</div></div>`;
+  } else if(variance<0){
+    varianceHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--critical-soft);border-color:var(--critical);"><span>⚠️</span><div style="font-size:12px;color:var(--critical);">Underpayment of <b>${fmtMoneyShort(Math.abs(variance))}</b> versus selected invoices.</div></div>`;
+  } else {
+    varianceHtml = `<div class="form-hint" style="margin-top:6px;color:var(--good);">✓ Matches selected invoices.</div>`;
+  }
   body.innerHTML = `
     <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-top:1px solid var(--border);"><span>Selected invoices</span><span class="mono">${fmtMoneyShort(invoiceTotal)}</span></div>
     ${cmTotal>0?`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;"><span>Less: Credit memos applied</span><span class="mono">−${fmtMoneyShort(cmTotal)}</span></div>`:''}
-    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:6px 0;border-top:1px solid var(--border);"><span>Net amount</span><span class="mono">${fmtMoneyShort(net)}</span></div>
-    ${variance!==0 ? `<div class="banner" style="margin:8px 0 0;padding:8px 10px;"><span>⚠️</span><div style="font-size:12px;">Net amount doesn't match selected invoices — variance of <b>${fmtMoneyShort(Math.abs(variance))}</b>.</div></div>` : `<div class="form-hint" style="margin-top:6px;color:var(--good);">✓ Matches selected invoices.</div>`}
+    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:6px 0;border-top:1px solid var(--border);"><span>Total payment</span><span class="mono">${fmtMoneyShort(net)}</span></div>
+    ${varianceHtml}
   `;
 }
 function submitProofOfPayment(){
@@ -1728,7 +1773,7 @@ function submitProofOfPayment(){
   const client = CLIENTS[CLIENT_USER.clientId];
   const hasProof = document.getElementById('p-proof-file').classList.contains('has-file');
   if(!hasProof){ showToast('Proof of payment attachment is required.'); return; }
-  if(pop2307Files.length===0){ showToast('At least one BIR Form 2307 is required.'); return; }
+  if(tax>0 && pop2307Files.length===0){ showToast('BIR Form 2307 is required when tax withheld is greater than ₱0.'); return; }
   const attachments = ['deposit-slip.jpg', ...pop2307Files];
   const ticket = {
     id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
@@ -1851,6 +1896,11 @@ function viewTicketDetail(ticketId, mode){
     ${attachmentsList(t)}
   </div>
 
+  <div class="section-head" style="margin-top:18px;"><h2>Response Trail</h2><span class="hint">Only between this client and their assigned Finance rep</span></div>
+  <div class="card card-pad">
+    ${renderResponseTrail(t)}
+  </div>
+
   ${(isStaff && t.type==='proof_of_payment') ? `
   <div class="section-head" style="margin-top:18px;"><h2>NetSuite posting</h2><span class="hint">${t.nsCustomerDepositId?'Posted':'Pending approval'}</span></div>
   <div class="card card-pad">
@@ -1872,7 +1922,6 @@ function viewTicketDetail(ticketId, mode){
     <div>
       <div class="seg" style="margin-bottom:12px;">
         <button class="seg-btn ${(STATE._ticketDetailTab||'history')==='history'?'active':''}" onclick="STATE._ticketDetailTab='history';render()">History</button>
-        <button class="seg-btn ${STATE._ticketDetailTab==='responses'?'active':''}" onclick="STATE._ticketDetailTab='responses';render()">Response Trail</button>
         <button class="seg-btn ${STATE._ticketDetailTab==='audit'?'active':''}" onclick="STATE._ticketDetailTab='audit';render()">Audit Trail</button>
       </div>
       <div class="card card-pad">
@@ -1888,7 +1937,6 @@ function viewTicketDetail(ticketId, mode){
               </div>
             </div>`).join('')}
         </div>` : ''}
-        ${STATE._ticketDetailTab==='responses' ? renderResponseTrail(t) : ''}
         ${STATE._ticketDetailTab==='audit' ? renderAuditTrail(t) : ''}
       </div>
       ${notes.length?`
@@ -1930,15 +1978,15 @@ function clientActionsHtml(t){
 }
 function renderResponseTrail(t){
   if(!t.comments.length) return `<div class="empty">No responses yet — replying here only goes between this client and their assigned Finance rep, not to anyone else on the original email.</div>`;
-  return t.comments.map((c,i)=>`
-    <div style="display:flex;gap:10px;padding:10px 0;${i>0?'border-top:1px solid var(--border-soft);':''}">
-      <div style="width:3px;background:${c.role==='client'?'var(--info)':'var(--accent)'};border-radius:2px;flex:0 0 auto;"></div>
-      <div style="flex:1;">
-        <div style="font-size:12.5px;font-weight:650;">${esc(c.author)} ${c.role==='client'?'<span class="pill pill-info">Client</span>':'<span class="pill pill-good">Finance</span>'}</div>
-        <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:4px;">${fmtDateTime(c.at)}</div>
-        <div style="font-size:13px;color:var(--text-muted);">${esc(c.text)}</div>
+  return `<div class="trail">` + t.comments.map(c=>`
+    <div class="trail-item">
+      <div class="trail-dot" style="background:${c.role==='client'?'var(--info)':'var(--accent)'};"></div>
+      <div class="trail-body">
+        <b>${esc(c.author)}</b> ${c.role==='client'?'<span class="pill pill-info" style="margin-left:2px;">Client</span>':'<span class="pill pill-good" style="margin-left:2px;">Finance</span>'}
+        <div class="trail-time">${fmtDateTime(c.at)}</div>
+        <div class="trail-text">${esc(c.text)}</div>
       </div>
-    </div>`).join('');
+    </div>`).join('') + `</div>`;
 }
 function renderAuditTrail(t){
   const log = t.auditLog||[];
