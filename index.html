@@ -476,6 +476,12 @@ const EXPERTS = {
   product:{id:'product', name:'Priya Nair', dept:'Product/Engineering'},
 };
 
+// Sample chart of accounts for the NetSuite posting entry editor —
+// swap for the real GL account list once connected.
+const BANK_ACCOUNTS = ['BPI Current Account ••1234', 'BDO Savings Account ••5678', 'Metrobank Current ••9012', 'UnionBank Current ••3456'];
+const CWT_ACCOUNTS = ['Creditable Withholding Tax Receivable'];
+const AR_ACCOUNTS = ['Trade Receivable — Accounts Receivable'];
+
 // Replaces the old whose-turn indicator — an internal routing tag for
 // who currently owns acting on this ticket.
 const ACTION_TAGS = ['Finance Action','CSM Action','Experts Action','Others'];
@@ -578,7 +584,12 @@ let TICKETS = [
     comments:[{author:'Carlo Reyes', role:'pic', at:d(-1,-3), text:'Pulled the NetSuite headcount backup for July — cross-checking against your approved roster now, will follow up by end of day.'}]}),
   mkTicket({idOffset:-6, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'Resolved', resolvedOffset:-5,
     subject:'Proof of payment — INV-10160', relatedInvoice:'INV-10160',
-    bank:'BPI', refNo:'TX-77410', amountPaid:'₱468,900.00', cwt:false,
+    bank:'BPI', refNo:'TX-77410', amountPaid:'₱468,900.00', grossAmount:468900, taxWithheld:0, cwt:false,
+    nsCustomerDepositId:'CD-77410',
+    postedLines:[
+      {side:'DR', account:'BPI Current Account ••1234', memo:'Collection from Meridian BPO Solutions Inc.', ref:'TX-77410', amount:468900},
+      {side:'CR', account:'Trade Receivable — Accounts Receivable', memo:'Settlement — INV-10160', ref:'TX-77410', amount:468900},
+    ],
     details:'BPI bank transfer for the full amount of INV-10160, no CWT applied.',
     comments:[{author:'Carlo Reyes', role:'pic', at:d(-5,-2), text:'Reconciled against the bank transfer — matches NetSuite. Marking resolved.'}]}),
   mkTicket({idOffset:-4, type:'service_invoice', clientId:'bluewave', requester:'Grace Tan', pic:'carlo', status:'Pending Client Info',
@@ -599,7 +610,7 @@ let TICKETS = [
     ]}),
   mkTicket({idOffset:0, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'New',
     subject:'Proof of payment — INV-10212 balance', relatedInvoice:'INV-10212',
-    bank:'BDO', refNo:'TX-88213', amountPaid:'₱476,800.00', cwt:true,
+    bank:'BDO', refNo:'TX-88213', amountPaid:'₱476,800.00', grossAmount:486530, taxWithheld:9730, cwt:true,
     details:'Bank transfer slip attached for the remaining balance on INV-10212.',
     attachments:['deposit-slip.jpg','BIR-2307.pdf']}),
   mkTicket({idOffset:-10, type:'dispute', clientId:'cebu', requester:'Miguel Santos', pic:'carlo', status:'Resolved', resolvedOffset:-8,
@@ -628,6 +639,10 @@ let TICKETS = [
     subject:'Minimum billable hours applied incorrectly',
     details:'Client believes the minimum-billable-hours clause was applied to two agents who exceeded the threshold.',
     comments:[{author:'Nina Abad', role:'pic', at:d(0,-2), text:'Pulling time-tracking export to verify actual hours logged for the two agents in question.'}]}),
+  mkTicket({idOffset:-2, type:'dispute', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'New',
+    subject:'Possible duplicate payment deduction',
+    reason:'Duplicate billing',
+    details:'Our bank statement shows two deductions for the same collection receipt amount this month — requesting Finance verify whether this was a duplicate payment or a reconciliation error.'}),
   mkTicket({idOffset:-7, type:'general_inquiry', clientId:'bluewave', requester:'Grace Tan', pic:'carlo', status:'Resolved', resolvedOffset:-6,
     subject:'Confirm accepted payment channels',
     details:'Asked which banks are accepted for direct deposit.',
@@ -643,13 +658,15 @@ function mkTicket(o){
     type:o.type, clientId:o.clientId, requester:o.requester, pic:o.pic, status:o.status,
     subject:o.subject, details:o.details, relatedInvoice:o.relatedInvoice||null,
     reason:o.reason||null, amount:o.amount||null,
-    bank:o.bank||null, refNo:o.refNo||null, amountPaid:o.amountPaid||null, cwt:o.cwt||false, invoicesApplied:o.invoicesApplied||null,
+    bank:o.bank||null, refNo:o.refNo||null, amountPaid:o.amountPaid||null, grossAmount:o.grossAmount||null, taxWithheld:o.taxWithheld||0, cwt:o.cwt||false, invoicesApplied:o.invoicesApplied||null,
     createdAt:created,
     slaDue:new Date(created.getTime()+slaDays*24*3600*1000),
     resolvedAt:o.resolvedOffset!=null?d(o.resolvedOffset):null,
     comments:o.comments||[],
     attachments:o.attachments||(o.type==='proof_of_payment'?['deposit-slip.jpg']:(o.type==='dispute'?['dispute-support.pdf']:[])),
     reassignedFrom:null,
+    nsCustomerDepositId:o.nsCustomerDepositId||null,
+    postedLines:o.postedLines||null,
     actionTag:'Finance Action', assignedToLabel:REPS[o.pic].name,
     tagHistory:[{tag:'Finance Action', at:created, note:'Ticket filed — assigned to '+REPS[o.pic].name}],
     auditLog:[{at:created, actor:o.requester, action:'Ticket filed'}],
@@ -681,6 +698,15 @@ function faqMatch(text){
 }
 
 let NOTIFICATIONS = [];
+
+// Bank Reconciliation module — sample seed data, simulated import/match/approve.
+let btxSeq = 1004;
+let BANK_TRANSACTIONS = [
+  {id:'BTX-1001', date:d(-3), description:'INCOMING FUND TRANSFER - BDO', amount:476800, status:'Unmatched', matchedTicketId:null},
+  {id:'BTX-1002', date:d(-6), description:'INCOMING FUND TRANSFER - BPI', amount:468900, status:'Approved', matchedTicketId:null, approvedBy:'Carlo Reyes', approvedAt:d(-5)},
+  {id:'BTX-1003', date:d(-2), description:'INCOMING FUND TRANSFER - UNIONBANK', amount:125000, status:'Unmatched', matchedTicketId:null},
+];
+
 function seedNotifications(){
   TICKETS.forEach(t=>{
     NOTIFICATIONS.push({id:'N'+t.id+'a', for:{type:'rep',id:t.pic}, at:t.createdAt,
@@ -713,7 +739,7 @@ function slaState(t){
   if(t.status==='Pending Client Info') return {label:'Paused', cls:'pill-info'};
   const msLeft = t.slaDue.getTime()-NOW.getTime();
   if(msLeft<0) return {label:'Breached', cls:'pill-critical'};
-  if(msLeft < 24*3600*1000) return {label:'At risk', cls:'pill-warning'};
+  if(msLeft < 24*3600*1000) return {label:'At risk', cls:'pill-critical'};
   return {label:'On track', cls:'pill-good'};
 }
 function statusPill(status){
@@ -750,7 +776,7 @@ const STATE = {
 
 const NAV = {
   client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
-  rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'reconciliation',label:'Bank Reconciliation',icon:'🏦'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   csm:[{id:'overview',label:'Account Overview',icon:'👁'},{id:'notifications',label:'Notifications',icon:'🔔'}],
 };
@@ -994,6 +1020,7 @@ function renderView(){
   if(STATE.role==='rep'){
     if(STATE.activeTicket) return viewTicketDetail(STATE.activeTicket, 'rep');
     if(STATE.view==='queue') return viewRepQueue();
+    if(STATE.view==='reconciliation') return viewBankRecon();
     if(STATE.view==='kpi') return viewRepKPI();
     if(STATE.view==='notifications') return viewNotifications('rep');
   }
@@ -1679,14 +1706,23 @@ function submitNewRequest(){
 
 /* ---- Proof of payment modal ---- */
 let pop2307Files = [];
-function openProofOfPaymentModal(){
-  const unpaid = INVOICES.filter(i=>i.status!=='Paid');
-  const openCMs = CREDIT_MEMOS.filter(cm=>cm.clientId===CLIENT_USER.clientId && cm.status==='Open');
+let popClientId = null;
+let popIsFinanceContext = false;
+function openProofOfPaymentModal(clientId){
+  popClientId = clientId || CLIENT_USER.clientId;
+  popIsFinanceContext = !!clientId;
+  const unpaid = INVOICES.filter(i=>i.status!=='Paid' && i.clientId===popClientId);
+  const openCMs = CREDIT_MEMOS.filter(cm=>cm.clientId===popClientId && cm.status==='Open');
   pop2307Files = [];
+  const myClients = popIsFinanceContext ? Object.values(CLIENTS).filter(c=>c.pic===STATE.activeRep) : [];
   openModal(`
-    <div class="modal-head"><div><h3>Submit proof of payment</h3><p>For reconciliation against ${CLIENTS[CLIENT_USER.clientId].name}’s NetSuite account.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-head"><div><h3>${popIsFinanceContext?'Upload proof of payment (on behalf of client)':'Submit proof of payment'}</h3><p>For reconciliation against ${CLIENTS[popClientId].name}’s NetSuite account.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      <div class="banner"><span>💡</span><div>If you want this portion to be auto-populated, upload your proof of payment and BIR 2307 first — we'll read the amounts for you.</div></div>
+      ${popIsFinanceContext ? `
+      <div class="form-field full"><label>Client</label>
+        <select id="p-client-select" onchange="openProofOfPaymentModal(this.value)">${myClients.map(c=>`<option value="${c.id}" ${c.id===popClientId?'selected':''}>${c.name}</option>`).join('')}</select>
+      </div>` : ''}
+      <div class="banner"><span>💡</span><div>If you want this portion to be auto-populated, upload the proof of payment and BIR 2307 first — we'll read the amounts for you.</div></div>
       <div class="two-col">
         <div>
           <div class="form-field"><label>Receiving bank</label>
@@ -1803,41 +1839,83 @@ function submitProofOfPayment(){
   const net = gross-tax;
   const checked = Array.from(document.querySelectorAll('input[name=p-inv]:checked')).map(el=>el.value);
   const checkedCMs = Array.from(document.querySelectorAll('input[name=p-cm]:checked')).map(el=>el.value);
-  const client = CLIENTS[CLIENT_USER.clientId];
+  const client = CLIENTS[popClientId];
+  const requesterName = popIsFinanceContext ? `${REPS[STATE.activeRep].name} (uploaded on behalf of ${client.name})` : CLIENT_USER.name;
   const hasProof = document.getElementById('p-proof-file').classList.contains('has-file');
   if(!hasProof){ showToast('Proof of payment attachment is required.'); return; }
   if(tax>0 && pop2307Files.length===0){ showToast('BIR Form 2307 is required when tax withheld is greater than ₱0.'); return; }
   const attachments = ['deposit-slip.jpg', ...pop2307Files];
   const ticket = {
-    id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
+    id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:requesterName, pic:client.pic, status:'New',
     subject:`Proof of payment — ${checked.join(', ')||'unapplied'}`,
-    details:`Bank transfer submitted via ${bank}${date?' on '+fmtDate(new Date(date+'T00:00:00')):''}. Awaiting Finance reconciliation against NetSuite.${checkedCMs.length?' Client also applied credit memo(s): '+checkedCMs.join(', ')+'.':''}`,
-    relatedInvoice:checked[0]||null, invoicesApplied:checked, creditMemosApplied:checkedCMs, bank, amountPaid: fmtMoney(net), refNo: ref||null, cwt:true,
+    details:`Bank transfer submitted via ${bank}${date?' on '+fmtDate(new Date(date+'T00:00:00')):''}. Awaiting Finance reconciliation against NetSuite.${checkedCMs.length?' Client also applied credit memo(s): '+checkedCMs.join(', ')+'.':''}${popIsFinanceContext?' Uploaded directly by Finance on the client behalf.':''}`,
+    relatedInvoice:checked[0]||null, invoicesApplied:checked, creditMemosApplied:checkedCMs, bank, amountPaid: fmtMoney(net), grossAmount:gross, taxWithheld:tax, refNo: ref||null, cwt:true,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS.proof_of_payment*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
     actionTag:'Finance Action', assignedToLabel:REPS[client.pic].name,
     tagHistory:[{tag:'Finance Action', at:new Date(), note:'Ticket filed — assigned to '+REPS[client.pic].name}],
-    auditLog:[{at:new Date(), actor:CLIENT_USER.name, action:'Ticket filed'}],
+    auditLog:[{at:new Date(), actor:requesterName, action:'Ticket filed'}],
   };
   TICKETS.unshift(ticket);
-  NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment submitted by ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
+  NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment ${popIsFinanceContext?'uploaded':'submitted'} for ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
   closeModal();
-  showToast('Proof of payment submitted for reconciliation');
-  setView('payments');
+  showToast(popIsFinanceContext ? `Proof of payment uploaded for ${client.name}` : 'Proof of payment submitted for reconciliation');
+  if(!popIsFinanceContext) setView('payments');
+  else render();
 }
 
 /* ============================================================
    FINANCE REP VIEWS
    ============================================================ */
+function openFinancePopModal(){
+  const myClients = Object.values(CLIENTS).filter(c=>c.pic===STATE.activeRep);
+  if(!myClients.length){ showToast('No clients assigned to you.'); return; }
+  openProofOfPaymentModal(myClients[0].id);
+}
+// Simulated classification — reads a dispute's subject/reason/details and
+// keyword-matches it into Invoice vs Payment dispute, the same
+// keyword-matching approach used by the chatbot and FAQ suggestions
+// elsewhere. Not real AI, but no manual sub-type field needed either.
+const PAYMENT_DISPUTE_KEYWORDS = ['payment','overpayment','underpayment','deposit','receipt','reconcil','double-charg','double charg','refund','collection','deduction','bank statement'];
+const INVOICE_DISPUTE_KEYWORDS = ['invoice','headcount','rate','surcharge','line item','billing period','seat','discrepancy','minimum billable'];
+function classifyDisputeCategory(t){
+  const text = `${t.subject} ${t.reason||''} ${t.details||''}`.toLowerCase();
+  const paymentHits = PAYMENT_DISPUTE_KEYWORDS.filter(k=>text.includes(k)).length;
+  const invoiceHits = INVOICE_DISPUTE_KEYWORDS.filter(k=>text.includes(k)).length;
+  return paymentHits > invoiceHits ? 'Payment Disputes' : 'Invoice Disputes';
+}
+function repCategoryOf(t){
+  if(t.type==='proof_of_payment') return 'Payment';
+  if(t.type==='dispute') return classifyDisputeCategory(t);
+  return 'Request for Billings';
+}
+const REP_CATEGORIES = ['All','Payment','Invoice Disputes','Request for Billings','Payment Disputes'];
+function matchesRepCategory(t, cat){
+  if(cat==='All') return true;
+  if(cat==='Payment') return t.type==='proof_of_payment';
+  if(cat==='Invoice Disputes') return t.type==='dispute' && classifyDisputeCategory(t)==='Invoice Disputes';
+  if(cat==='Payment Disputes') return t.type==='dispute' && classifyDisputeCategory(t)==='Payment Disputes';
+  if(cat==='Request for Billings') return ['service_invoice','headcount','general_inquiry'].includes(t.type);
+  return true;
+}
 function viewRepQueue(){
   const rep = REPS[STATE.activeRep];
   const list = ticketsForRep(rep.id);
   const counts = repOpenCounts(rep.id);
   const justFiled = list.filter(t=>t.status==='New' && (NOW-t.createdAt)<3600*1000*24);
 
-  const f = STATE._repFilter||{status:'all'};
+  const cat = STATE._repCatFilter||'All';
+  STATE._repCatFilter = cat;
+  const f = STATE._repFilter||{status:'all', q:''};
   STATE._repFilter=f;
-  const filtered = f.status==='all'?list:list.filter(t=>t.status===f.status);
+
+  const filtered = list.filter(t=>{
+    if(!matchesRepCategory(t, cat)) return false;
+    if(f.status==='In Progress' && !(t.status==='In Progress'||t.status==='Pending Client Info')) return false;
+    if(f.status!=='all' && f.status!=='In Progress' && t.status!==f.status) return false;
+    if(f.q && !CLIENTS[t.clientId].name.toLowerCase().includes(f.q.toLowerCase()) && !t.subject.toLowerCase().includes(f.q.toLowerCase())) return false;
+    return true;
+  });
 
   return `
   ${justFiled.length?`<div class="banner"><span>🔔</span><div><b>${justFiled.length} new request${justFiled.length>1?'s':''}</b> just auto-assigned to you — ${justFiled.map(t=>`"${esc(t.subject)}"`).join(', ')}.</div></div>`:''}
@@ -1851,12 +1929,21 @@ function viewRepQueue(){
     </div>
   </div>
   <div class="section">
-    <div class="section-head"><h2>Personal queue</h2><span class="hint">Clients whose NetSuite-assigned Finance PIC is ${rep.name}</span></div>
+    <div class="section-head">
+      <h2>Personal queue</h2>
+      <button class="btn btn-primary btn-sm" onclick="openFinancePopModal()">📤 Upload POP for client</button>
+    </div>
+    <div class="seg" style="margin-bottom:12px;flex-wrap:wrap;">
+      ${REP_CATEGORIES.map(c=>`<button class="seg-btn ${cat===c?'active':''}" onclick="STATE._repCatFilter='${c}';render()">${c}</button>`).join('')}
+    </div>
     <div class="filters">
       <div class="field"><label>Status</label>
         <select onchange="STATE._repFilter.status=this.value;render()">
-          ${['all','New','In Progress','Pending Client Info','Resolved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
+          ${['all','New','In Progress','Resolved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
         </select>
+      </div>
+      <div class="field"><label>Search</label>
+        <div class="search-box"><input type="text" placeholder="Client or subject" value="${esc(f.q)}" oninput="STATE._repFilter.q=this.value;render()"></div>
       </div>
     </div>
     <div class="card">
@@ -1954,21 +2041,25 @@ function viewTicketDetail(ticketId, mode){
   </div>
 
   ${(isStaff && t.type==='proof_of_payment') ? `
-  <div class="section-head" style="margin-top:18px;"><h2>NetSuite posting</h2><span class="hint">${t.nsCustomerDepositId?'Posted':'Pending approval'}</span></div>
+  <div class="section-head" style="margin-top:18px;">
+    <h2>NetSuite posting</h2>
+    ${t.nsCustomerDepositId ? `<span class="pill pill-good"><span class="dot"></span>Posted</span>` : `<span class="hint">Pending posting</span>`}
+  </div>
   <div class="card card-pad">
     ${t.nsCustomerDepositId ? `
-      <div class="form-hint">✅ Posted to NetSuite as <b class="mono">${t.nsCustomerDepositId}</b> (Customer Deposit).</div>
-    ` : `
-      <div class="form-hint" style="margin-bottom:10px;">Approving this ticket will create the following in NetSuite. Review before approving.</div>
-      <div class="form-grid">
-        <div class="form-field"><label>Record type</label><div style="font-size:13.5px;">Customer Deposit</div></div>
-        <div class="form-field"><label>Customer</label><div style="font-size:13.5px;">${client.name}</div></div>
-        <div class="form-field"><label>Amount</label><div class="mono" style="font-size:13.5px;">${t.amountPaid||'—'}</div></div>
-        <div class="form-field"><label>Payment method</label><div style="font-size:13.5px;">${t.bank||'—'} transfer${t.refNo?' · Ref '+t.refNo:''}</div></div>
-        <div class="form-field full"><label>Memo</label><div style="font-size:13.5px;color:var(--text-muted);">Applied toward ${t.relatedInvoice||'open balance'} for ${client.name}, pending Finance validation.</div></div>
+      <div class="form-hint" style="margin-bottom:10px;">✅ Posted to NetSuite as <b class="mono">${t.nsCustomerDepositId}</b> (Customer Deposit).</div>
+      ${renderPostedEntryReadonly(t)}
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn" onclick="viewCollectionReceipt('${t.id}')">🧾 Generate collection receipt</button>
+        <button class="btn btn-primary" onclick="sendReceiptToClient('${t.id}')">✉️ Send to client</button>
       </div>
+    ` : `
+      <div class="form-hint" style="margin-bottom:10px;">Review the entries below — accounts, memo, and reference are editable.</div>
+      ${renderPostingPreview(t)}
+      <button class="btn" style="width:100%;margin-top:12px;background:var(--warning-soft);border-color:var(--warning);color:var(--warning);" onclick="confirmPostToNetSuite('${t.id}')">⏳ Pending Posting</button>
     `}
   </div>` : ''}
+
 
   <div class="two-col" style="margin-top:18px;">
     <div>
@@ -1986,7 +2077,6 @@ function viewTicketDetail(ticketId, mode){
       <div class="section-head"><h2>Actions</h2></div>
       <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
         ${(t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
-        ${t.type==='proof_of_payment' ? `<button class="btn btn-primary" onclick="repApprovePosting('${t.id}')">✅ Approve &amp; Post Customer Deposit to NetSuite</button>` : ''}
         <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
         <button class="btn" onclick="repResolve('${t.id}')">Mark Resolved</button>
         `}
@@ -2262,10 +2352,108 @@ function repResolve(id){
   showToast('Ticket marked Resolved — client notified');
   render();
 }
+function renderPostingPreview(t){
+  const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
+  const tax = t.taxWithheld||0;
+  const net = gross-tax;
+  const bankDefault = BANK_ACCOUNTS.find(b=>b.toLowerCase().includes((t.bank||'').toLowerCase())) || BANK_ACCOUNTS[0];
+  let rows = [
+    {side:'DR', accId:'post-acc-bank', options:BANK_ACCOUNTS, def:bankDefault, memoId:'post-memo-bank', memoDef:`Collection from ${CLIENTS[t.clientId].name}`, refId:'post-ref-bank', refDef:t.refNo||'', amount:net},
+  ];
+  if(tax>0){
+    rows.push({side:'DR', accId:'post-acc-cwt', options:CWT_ACCOUNTS, def:CWT_ACCOUNTS[0], memoId:'post-memo-cwt', memoDef:'CWT per BIR Form 2307', refId:'post-ref-cwt', refDef:'2307', amount:tax});
+  }
+  rows.push({side:'CR', accId:'post-acc-ar', options:AR_ACCOUNTS, def:AR_ACCOUNTS[0], memoId:'post-memo-ar', memoDef:`Settlement — ${t.relatedInvoice||'open balance'}`, refId:'post-ref-ar', refDef:t.refNo||'', amount:gross});
+  return `<div class="table-wrap"><table>
+    <thead><tr><th></th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th></tr></thead>
+    <tbody>
+      ${rows.map(r=>`
+        <tr>
+          <td><span class="pill ${r.side==='DR'?'pill-info':'pill-warning'}">${r.side}</span></td>
+          <td><select id="${r.accId}">${r.options.map(o=>`<option ${o===r.def?'selected':''}>${esc(o)}</option>`).join('')}</select></td>
+          <td><input type="text" id="${r.memoId}" value="${esc(r.memoDef)}" style="width:100%;"></td>
+          <td><input type="text" id="${r.refId}" value="${esc(r.refDef)}" style="width:110px;"></td>
+          <td class="mono">${fmtMoney(r.amount)}</td>
+        </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+function renderPostedEntryReadonly(t){
+  const lines = t.postedLines||[];
+  if(!lines.length) return '';
+  return `<div class="table-wrap"><table>
+    <thead><tr><th></th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th></tr></thead>
+    <tbody>
+      ${lines.map(l=>`<tr><td><span class="pill ${l.side==='DR'?'pill-info':'pill-warning'}">${l.side}</span></td><td>${esc(l.account)}</td><td>${esc(l.memo)}</td><td class="mono">${esc(l.ref)||'—'}</td><td class="mono">${fmtMoney(l.amount)}</td></tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+function confirmPostToNetSuite(id){
+  const t = TICKETS.find(x=>x.id===id);
+  const bankRef = document.getElementById('post-ref-bank')?.value.trim() || '';
+  const arRef = document.getElementById('post-ref-ar')?.value.trim() || '';
+  if(!bankRef || !arRef){
+    showToast('Please enter a reference number on every line before posting.');
+    return;
+  }
+  const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
+  const tax = t.taxWithheld||0;
+  const net = gross-tax;
+  const bankAcc = document.getElementById('post-acc-bank')?.value || BANK_ACCOUNTS[0];
+  const bankMemo = document.getElementById('post-memo-bank')?.value || '';
+  const arAcc = document.getElementById('post-acc-ar')?.value || AR_ACCOUNTS[0];
+  const arMemo = document.getElementById('post-memo-ar')?.value || '';
+  let cwtRow = '';
+  if(tax>0){
+    const cwtAcc = document.getElementById('post-acc-cwt')?.value || CWT_ACCOUNTS[0];
+    const cwtMemo = document.getElementById('post-memo-cwt')?.value || '';
+    const cwtRef = document.getElementById('post-ref-cwt')?.value || '';
+    cwtRow = `<tr><td><span class="pill pill-info">DR</span></td><td>${esc(cwtAcc)}</td><td>${esc(cwtMemo)}</td><td class="mono">${esc(cwtRef)||'—'}</td><td class="mono">${fmtMoney(tax)}</td></tr>`;
+  }
+  openModal(`
+    <div class="modal-head"><div><h3>Confirm posting to NetSuite</h3><p>This is the pro-forma entry (NS) that will be posted. Verify before proceeding.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="table-wrap"><table>
+        <thead><tr><th></th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill pill-info">DR</span></td><td>${esc(bankAcc)}</td><td>${esc(bankMemo)}</td><td class="mono">${esc(bankRef)}</td><td class="mono">${fmtMoney(net)}</td></tr>
+          ${cwtRow}
+          <tr><td><span class="pill pill-warning">CR</span></td><td>${esc(arAcc)}</td><td>${esc(arMemo)}</td><td class="mono">${esc(arRef)}</td><td class="mono">${fmtMoney(gross)}</td></tr>
+        </tbody>
+      </table></div>
+      <div class="form-hint" style="margin-top:10px;">This step exists specifically to catch mistakes before anything reaches NetSuite.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Go back and review</button>
+      <button class="btn btn-primary" onclick="closeModal();repApprovePosting('${id}')">Proceed — post to NetSuite</button>
+    </div>
+  `);
+}
 function repApprovePosting(id){
   const t = TICKETS.find(x=>x.id===id);
   const depositId = 'CD-' + Math.floor(10000+Math.random()*90000);
   t.nsCustomerDepositId = depositId;
+
+  const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
+  const tax = t.taxWithheld||0;
+  const net = gross-tax;
+  const lines = [];
+  const bankAcc = document.getElementById('post-acc-bank')?.value || BANK_ACCOUNTS[0];
+  const bankMemo = document.getElementById('post-memo-bank')?.value || '';
+  const bankRef = document.getElementById('post-ref-bank')?.value || '';
+  lines.push({side:'DR', account:bankAcc, memo:bankMemo, ref:bankRef, amount:net});
+  if(tax>0){
+    const cwtAcc = document.getElementById('post-acc-cwt')?.value || CWT_ACCOUNTS[0];
+    const cwtMemo = document.getElementById('post-memo-cwt')?.value || '';
+    const cwtRef = document.getElementById('post-ref-cwt')?.value || '';
+    lines.push({side:'DR', account:cwtAcc, memo:cwtMemo, ref:cwtRef, amount:tax});
+  }
+  const arAcc = document.getElementById('post-acc-ar')?.value || AR_ACCOUNTS[0];
+  const arMemo = document.getElementById('post-memo-ar')?.value || '';
+  const arRef = document.getElementById('post-ref-ar')?.value || '';
+  lines.push({side:'CR', account:arAcc, memo:arMemo, ref:arRef, amount:gross});
+  t.postedLines = lines;
+
   const amt = t.amountPaid ? '₱'+parseMoney(t.amountPaid).toLocaleString('en-PH') : '';
   if(t.creditMemosApplied && t.creditMemosApplied.length){
     t.creditMemosApplied.forEach(cmId=>{
@@ -2279,6 +2467,29 @@ function repApprovePosting(id){
   NOTIFICATIONS.unshift({id:'N'+t.id+'post'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your proof of payment was validated and posted to NetSuite (${depositId}).`, read:false, ticketId:t.id});
   showToast(`Posted to NetSuite as ${depositId} (simulated — real posting needs the NetSuite connection)`);
   render();
+}
+function viewCollectionReceipt(ticketId){
+  const t = TICKETS.find(x=>x.id===ticketId);
+  const client = CLIENTS[t.clientId];
+  const body = `
+    <div class="doc-sheet">
+      <div class="doc-head">
+        <div><div class="doc-brand">🌱 Sprout</div><div class="doc-brand-sub">Official Collection Receipt</div></div>
+        <div class="doc-head-right"><div class="k">Receipt #</div><div class="v mono">${t.nsCustomerDepositId}</div></div>
+      </div>
+      <div class="doc-meta">
+        <div><div class="k">Received from</div><div class="v">${client.name}</div></div>
+        <div><div class="k">Applied to</div><div class="v mono">${(t.invoicesApplied&&t.invoicesApplied.length?t.invoicesApplied.join(', '):(t.relatedInvoice||'—'))}</div></div>
+        <div><div class="k">Amount received (net)</div><div class="v mono">${t.amountPaid||'—'}</div></div>
+        <div><div class="k">Date posted</div><div class="v">${fmtDate(t.resolvedAt||new Date())}</div></div>
+      </div>
+      <div class="doc-status">${invoicePill('Paid')} Posted to NetSuite as Customer Deposit ${t.nsCustomerDepositId}</div>
+    </div>`;
+  openDocPreview('Collection Receipt', `${client.name} · ${t.nsCustomerDepositId}`, body, `${t.nsCustomerDepositId}-receipt.pdf`);
+}
+function sendReceiptToClient(ticketId){
+  const t = TICKETS.find(x=>x.id===ticketId);
+  showToast(`Collection receipt sent to ${t.requester} (${emailFor(t.requester)})`);
 }
 function repReassign(id){
   const t = TICKETS.find(x=>x.id===id);
@@ -2658,6 +2869,105 @@ function viewRepKPI(){
 
   <div class="card card-pad" style="font-size:12px;color:var(--text-faint);">
     Per the design's role-based access matrix (Section 15.1), Finance Reps see their own performance summary here. Team Leads see full team and per-associate reporting under <b>Reports &amp; KPIs</b>.
+  </div>`;
+}
+
+/* ============================================================
+   BANK RECONCILIATION — import statement, match to tickets,
+   Associate approval. All simulated, no real bank feed.
+   ============================================================ */
+function bankTxStatusPill(status){
+  const map = {'Unmatched':'pill-warning', 'Matched':'pill-info', 'Approved':'pill-good'};
+  return `<span class="pill ${map[status]||'pill-neutral'}"><span class="dot"></span>${status}</span>`;
+}
+function importBankStatement(){
+  const samples = [
+    {description:'INCOMING FUND TRANSFER - METROBANK', amount: Math.round(50000+Math.random()*400000)},
+    {description:'INCOMING FUND TRANSFER - BPI', amount: Math.round(50000+Math.random()*400000)},
+  ];
+  samples.forEach(s=>{
+    BANK_TRANSACTIONS.unshift({id:'BTX-'+(btxSeq++), date:new Date(), description:s.description, amount:s.amount, status:'Unmatched', matchedTicketId:null});
+  });
+  showToast(`Imported ${samples.length} new bank transaction(s) (simulated).`);
+  render();
+}
+function openMatchTransactionModal(btxId){
+  const btx = BANK_TRANSACTIONS.find(b=>b.id===btxId);
+  const candidates = TICKETS.filter(t=>t.type==='proof_of_payment' && !t.bankTxMatched);
+  openModal(`
+    <div class="modal-head"><div><h3>Match bank transaction</h3><p>${esc(btx.description)} · ${fmtMoney(btx.amount)} · ${fmtDate(btx.date)}</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-field full"><label>Match to ticket</label>
+        <select id="btx-match-select">
+          ${candidates.length ? candidates.map(t=>`<option value="${t.id}">${t.id} — ${CLIENTS[t.clientId].name} — ${t.amountPaid||''}</option>`).join('') : '<option value="">No open proof-of-payment tickets to match</option>'}
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmMatchTransaction('${btxId}')">Match</button>
+    </div>
+  `);
+}
+function confirmMatchTransaction(btxId){
+  const sel = document.getElementById('btx-match-select');
+  const ticketId = sel ? sel.value : '';
+  if(!ticketId){ showToast('Pick a ticket to match.'); return; }
+  const btx = BANK_TRANSACTIONS.find(b=>b.id===btxId);
+  btx.status = 'Matched';
+  btx.matchedTicketId = ticketId;
+  const t = TICKETS.find(x=>x.id===ticketId);
+  if(t) t.bankTxMatched = btxId;
+  showToast('Transaction matched — awaiting Associate approval.');
+  closeModal();
+  render();
+}
+function approveMatchedTransaction(btxId){
+  const btx = BANK_TRANSACTIONS.find(b=>b.id===btxId);
+  btx.status = 'Approved';
+  btx.approvedBy = REPS[STATE.activeRep].name;
+  btx.approvedAt = new Date();
+  showToast(`Match approved by ${btx.approvedBy}.`);
+  render();
+}
+function viewBankRecon(){
+  const unmatched = BANK_TRANSACTIONS.filter(b=>b.status==='Unmatched').length;
+  const matched = BANK_TRANSACTIONS.filter(b=>b.status==='Matched').length;
+  const approved = BANK_TRANSACTIONS.filter(b=>b.status==='Approved').length;
+  return `
+  ${introBanner(`This <b>Bank Reconciliation</b> module simulates importing a bank statement, matching transactions to proof-of-payment tickets, and having an Associate approve the match.`)}
+  <div class="section">
+    <div class="section-head">
+      <h2>Bank Reconciliation</h2>
+      <button class="btn btn-primary btn-sm" onclick="importBankStatement()">⬆ Import bank statement</button>
+    </div>
+    <div class="tiles">
+      <div class="tile accent-warning"><div class="tile-label">Unmatched</div><div class="tile-value">${unmatched}</div></div>
+      <div class="tile"><div class="tile-label">Matched (pending approval)</div><div class="tile-value">${matched}</div></div>
+      <div class="tile accent-good"><div class="tile-label">Approved</div><div class="tile-value">${approved}</div></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Matched to</th><th>Action</th></tr></thead>
+        <tbody>
+          ${BANK_TRANSACTIONS.map(b=>`
+            <tr>
+              <td>${fmtDateShort(b.date)}</td>
+              <td class="wrap">${esc(b.description)}</td>
+              <td class="mono">${fmtMoney(b.amount)}</td>
+              <td>${bankTxStatusPill(b.status)}</td>
+              <td class="mono">${b.matchedTicketId||'—'}</td>
+              <td>
+                ${b.status==='Unmatched'?`<button class="btn btn-sm" onclick="openMatchTransactionModal('${b.id}')">Match</button>`:''}
+                ${b.status==='Matched'?`<button class="btn btn-sm btn-primary" onclick="approveMatchedTransaction('${b.id}')">Approve</button>`:''}
+                ${b.status==='Approved'?`<span class="form-hint">by ${esc(b.approvedBy||'')}</span>`:''}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
   </div>`;
 }
 
