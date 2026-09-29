@@ -288,12 +288,13 @@ textarea{resize:vertical;min-height:70px;}
 .timeline-note{font-size:13px;color:var(--text-muted);margin-top:4px;}
 .timeline-note.internal{background:var(--warning-soft);color:var(--warning);padding:6px 9px;border-radius:6px;display:inline-block;}
 .trail{display:flex;flex-direction:column;gap:0;margin-top:4px;}
-.trail-item{display:flex;gap:12px;padding:12px 0;position:relative;}
-.trail-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 auto;position:relative;z-index:1;}
-.trail-item:not(:last-child) .trail-dot::after{content:'';position:absolute;top:9px;left:50%;transform:translateX(-50%);width:2px;height:calc(100% + 12px);background:var(--border);}
-.trail-body b{font-size:13px;}
-.trail-time{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
-.trail-text{font-size:13px;color:var(--text-muted);margin-top:4px;}
+.trail-item{display:flex;gap:12px;padding:14px 0;position:relative;}
+.trail-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:0 0 auto;position:relative;z-index:1;}
+.trail-item:not(:last-child) .trail-avatar::after{content:'';position:absolute;top:36px;left:50%;transform:translateX(-50%);width:2px;height:calc(100% + 14px);background:var(--border);}
+.trail-name{font-size:13px;font-weight:650;}
+.trail-time{font-size:11.5px;color:var(--text-faint);margin-left:6px;font-weight:400;}
+.trail-to{font-size:11px;color:var(--text-faint);margin-top:2px;}
+.trail-text{font-size:13px;color:var(--text-muted);margin-top:5px;line-height:1.5;}
 
 /* chart bits */
 .bars{display:flex;align-items:flex-end;gap:10px;height:120px;padding-top:16px;}
@@ -441,6 +442,12 @@ function relTime(dt){
   if(days<0) return `${-days}d ago`;
   return `in ${days}d`;
 }
+function initialsOf(name){
+  return (name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+}
+function emailFor(name){
+  return (name||'unknown').toLowerCase().replace(/[^a-z ]/g,'').trim().replace(/\s+/g,'.')+'@example.com';
+}
 
 /* ---------------- Seed data ---------------- */
 let idSeq = 2232;
@@ -460,6 +467,23 @@ const CSMS = {
   pat:{id:'pat', name:'Pat Villanueva', initials:'PV', role:'Sales Rep'},
   dennis:{id:'dennis', name:'Dennis Ong', initials:'DO', role:'Sales Rep'},
 };
+
+// Sample list — named experts/departments a ticket can be endorsed to.
+const EXPERTS = {
+  tax:{id:'tax', name:'Ana Cruz', dept:'Tax & Compliance'},
+  legal:{id:'legal', name:'Miguel Santos', dept:'Legal'},
+  it:{id:'it', name:'IT Support Team', dept:'IT Support'},
+  product:{id:'product', name:'Priya Nair', dept:'Product/Engineering'},
+};
+
+// Replaces the old whose-turn indicator — an internal routing tag for
+// who currently owns acting on this ticket.
+const ACTION_TAGS = ['Finance Action','CSM Action','Experts Action','Others'];
+function actionTagPill(t){
+  const map = {'Finance Action':'pill-info','CSM Action':'pill-warning','Experts Action':'pill-neutral','Others':'pill-neutral'};
+  if(t.status==='Resolved'||t.status==='Closed') return `<span class="pill pill-good"><span class="dot"></span>Resolved</span>`;
+  return `<span class="pill ${map[t.actionTag]||'pill-info'}"><span class="dot"></span>${esc(t.actionTag||'Finance Action')}</span>`;
+}
 
 const CLIENTS = {
   meridian: {id:'meridian', name:'Meridian BPO Solutions Inc.', tier:'Enterprise', pic:'carlo', csm:'jamie', sales:'pat'},
@@ -569,9 +593,9 @@ let TICKETS = [
     details:'The headcount CSV for INV-10255 lists 214 billable seats — our internal roster shows 211. Please clarify the 3-seat difference before we process payment.',
     attachments:['headcount-notes.pdf'],
     comments:[
-      {author:'Carlo Reyes', role:'pic', at:d(0,-3), text:'Thanks for flagging — let me check the headcount CSV against your roster and get back to you.'},
-      {author:'Ana Lim', role:'client', at:d(0,-2), text:'Sure, also note that 2 of those seats were terminated last week — not sure if that is reflected yet.'},
-      {author:'Carlo Reyes', role:'pic', at:d(0,-1), text:'Good catch — confirmed the 3-seat gap includes those 2 terminations plus 1 pending offboarding. I will adjust the invoice and send an updated CSV.'},
+      {author:'Carlo Reyes', role:'pic', at:d(0,-3), text:'Thanks for flagging — let me check the headcount CSV against your roster and get back to you.', to:['Ana Lim <ana.lim@example.com>']},
+      {author:'Ana Lim', role:'client', at:d(0,-2), text:'Sure, also note that 2 of those seats were terminated last week — not sure if that is reflected yet.', to:['Carlo Reyes <carlo.reyes@example.com>']},
+      {author:'Carlo Reyes', role:'pic', at:d(0,-1), text:'Good catch — confirmed the 3-seat gap includes those 2 terminations plus 1 pending offboarding. I will adjust the invoice and send an updated CSV.', to:['Ana Lim <ana.lim@example.com>']},
     ]}),
   mkTicket({idOffset:0, type:'proof_of_payment', clientId:'meridian', requester:'Rico Bautista', pic:'carlo', status:'New',
     subject:'Proof of payment — INV-10212 balance', relatedInvoice:'INV-10212',
@@ -626,6 +650,8 @@ function mkTicket(o){
     comments:o.comments||[],
     attachments:o.attachments||(o.type==='proof_of_payment'?['deposit-slip.jpg']:(o.type==='dispute'?['dispute-support.pdf']:[])),
     reassignedFrom:null,
+    actionTag:'Finance Action', assignedToLabel:REPS[o.pic].name,
+    tagHistory:[{tag:'Finance Action', at:created, note:'Ticket filed — assigned to '+REPS[o.pic].name}],
     auditLog:[{at:created, actor:o.requester, action:'Ticket filed'}],
   };
 }
@@ -633,16 +659,13 @@ function logAudit(t, action, actor){
   if(!t.auditLog) t.auditLog=[];
   t.auditLog.push({at:new Date(), actor, action});
 }
-function whoseTurn(t){
-  if(t.status==='Resolved'||t.status==='Closed') return null;
-  if(t.status==='Pending Client Info') return 'Client';
-  return 'Finance';
+function logTagChange(t, tag, note, actor){
+  if(!t.tagHistory) t.tagHistory=[];
+  t.tagHistory.push({tag, at:new Date(), note});
+  t.actionTag = tag;
+  logAudit(t, `Tag set to ${tag}${note?' — '+note:''}`, actor);
 }
-function whoseTurnPill(t){
-  const turn = whoseTurn(t);
-  if(!turn) return '';
-  return `<span class="pill ${turn==='Client'?'pill-warning':'pill-info'}">🎯 ${turn}</span>`;
-}
+
 
 // Sample FAQ content — placeholder only, replace with your real FAQ library.
 const FAQ_KB = [
@@ -1205,14 +1228,19 @@ function sendChatbotMessage(){
 /* ---- FAQ gate (shown before filing certain ticket types) ---- */
 function renderFaqItem(faq){
   return `<div class="card card-pad faq-item" data-search="${esc((faq.q+' '+faq.tags.join(' ')).toLowerCase())}" style="margin-bottom:8px;">
-    <div style="cursor:pointer;font-weight:600;font-size:13px;" onclick="const a=this.nextElementSibling;a.style.display=a.style.display==='none'?'block':'none';">❓ ${esc(faq.q)}</div>
+    <div style="cursor:pointer;font-weight:600;font-size:13px;" onclick="const a=this.nextElementSibling;a.style.display=a.style.display==='none'?'block':'none';showFaqEscalate();">❓ ${esc(faq.q)}</div>
     <div style="display:none;font-size:12.5px;color:var(--text-muted);margin-top:8px;">${esc(faq.a)}</div>
   </div>`;
 }
+function showFaqEscalate(){
+  const wrap = document.getElementById('faq-escalate-wrap');
+  if(wrap) wrap.style.display = 'block';
+}
 function filterFaqList(){
-  const q = (document.getElementById('faq-search').value||'').toLowerCase();
-  document.querySelectorAll('.faq-item').forEach(el=>{
-    el.style.display = el.dataset.search.includes(q) ? 'block' : 'none';
+  const el = document.getElementById('faq-subject');
+  const q = (el ? el.value : '').toLowerCase();
+  document.querySelectorAll('.faq-item').forEach(item=>{
+    item.style.display = item.dataset.search.includes(q) ? 'block' : 'none';
   });
 }
 
@@ -1456,7 +1484,7 @@ function viewClientRequests(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
+        <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Tag</th></tr></thead>
         <tbody>
           ${myTickets.length? myTickets.map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -1465,7 +1493,7 @@ function viewClientRequests(){
               <td>${fmtDateShort(t.createdAt)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
-              <td>${whoseTurnPill(t)}</td>
+              <td>${actionTagPill(t)}</td>
             </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No requests filed yet</div></td></tr>`}
         </tbody>
       </table>
@@ -1534,6 +1562,7 @@ function markAllRead(role){
 function openNewRequestModal(){
   STATE._reqType = null;
   STATE._reqFaqPassed = false;
+  STATE._reqSubjectDraft = '';
   renderRequestModal();
 }
 function renderRequestModal(){
@@ -1586,10 +1615,12 @@ function renderRequestModal(){
       <span class="pill pill-neutral">${TYPE_META[t].icon} ${TYPE_META[t].label}</span>
       <button class="btn btn-ghost btn-sm" onclick="STATE._reqType=null;renderRequestModal()">Change type</button>
     </div>
-    <div class="form-hint" style="margin-bottom:10px;"><i>Sample FAQs shown here — replace with your real FAQ content.</i></div>
-    <div class="search-box" style="margin-bottom:10px;width:100%;"><input type="text" id="faq-search" placeholder="Search FAQs..." oninput="filterFaqList()" style="width:100%;"></div>
+    <div class="form-field full"><label>What's your question about?</label><input type="text" id="faq-subject" value="${esc(STATE._reqSubjectDraft||'')}" placeholder="e.g. incorrect headcount, late payment fee..." oninput="STATE._reqSubjectDraft=this.value;filterFaqList()" style="width:100%;"></div>
+    <div class="form-hint" style="margin:-6px 0 10px;"><i>Sample FAQs shown here — replace with your real FAQ content.</i></div>
     <div id="faq-list">${FAQ_KB.map(renderFaqItem).join('')}</div>
-    <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="STATE._reqFaqPassed=true;renderRequestModal()">This didn't answer my question — file a ticket</button>
+    <div id="faq-escalate-wrap" style="display:none;">
+      <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="STATE._reqFaqPassed=true;renderRequestModal()">This didn't answer my question — file a ticket</button>
+    </div>
   ` : `
     <div style="display:flex;align-items:center;gap:8px;margin:-4px 0 2px;">
       <span class="pill pill-neutral">${TYPE_META[t].icon} ${TYPE_META[t].label}</span>
@@ -1597,7 +1628,7 @@ function renderRequestModal(){
     </div>
     <div class="form-grid">
       ${typeFields[t]}
-      <div class="form-field full"><label>Summary</label><input type="text" id="f-subject" placeholder="Short summary of your request"></div>
+      <div class="form-field full"><label>Summary</label><input type="text" id="f-subject" value="${esc(STATE._reqSubjectDraft||'')}" placeholder="Short summary of your request"></div>
       <div class="form-field full"><label>Details</label><textarea id="f-details" placeholder="Add any context the Finance team should know"></textarea></div>
       <div class="form-field full"><label>Attachment <span class="opt">(optional)</span></label>
         <div class="file-drop" id="f-attach" onclick="this.classList.add('has-file');this.textContent='📎 ${attachmentNameFor(t)} attached'">Click to attach a supporting file</div>
@@ -1634,6 +1665,8 @@ function submitNewRequest(){
     subject, details, relatedInvoice, reason: reason||null, amount: amount||null,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS[t]*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+    actionTag:'Finance Action', assignedToLabel:REPS[client.pic].name,
+    tagHistory:[{tag:'Finance Action', at:new Date(), note:'Ticket filed — assigned to '+REPS[client.pic].name}],
     auditLog:[{at:new Date(), actor:CLIENT_USER.name, action:'Ticket filed'}],
   };
   TICKETS.unshift(ticket);
@@ -1782,6 +1815,8 @@ function submitProofOfPayment(){
     relatedInvoice:checked[0]||null, invoicesApplied:checked, creditMemosApplied:checkedCMs, bank, amountPaid: fmtMoney(net), refNo: ref||null, cwt:true,
     createdAt:new Date(), slaDue:new Date(Date.now()+SLA_DAYS.proof_of_payment*24*3600*1000),
     resolvedAt:null, comments:[], attachments, reassignedFrom:null,
+    actionTag:'Finance Action', assignedToLabel:REPS[client.pic].name,
+    tagHistory:[{tag:'Finance Action', at:new Date(), note:'Ticket filed — assigned to '+REPS[client.pic].name}],
     auditLog:[{at:new Date(), actor:CLIENT_USER.name, action:'Ticket filed'}],
   };
   TICKETS.unshift(ticket);
@@ -1827,7 +1862,7 @@ function viewRepQueue(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
+        <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Tag</th></tr></thead>
         <tbody>
           ${filtered.length? filtered.map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -1837,7 +1872,7 @@ function viewRepQueue(){
               <td>${fmtDateShort(t.createdAt)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
-              <td>${whoseTurnPill(t)}</td>
+              <td>${actionTagPill(t)}</td>
             </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No tickets match this filter</div></td></tr>`}
         </tbody>
       </table>
@@ -1853,14 +1888,7 @@ function viewTicketDetail(ticketId, mode){
   const client = CLIENTS[t.clientId];
   const isStaff = mode==='rep' || mode==='lead';
   const notes = isStaff ? INTERNAL_NOTES.filter(n=>n.clientId===t.clientId) : [];
-  const otherReps = Object.values(REPS).filter(r=>r.id!==t.pic);
   const backLabel = (NAV[STATE.role].find(n=>n.id===STATE.view)||{}).label || 'back';
-
-  const events = [{at:t.createdAt, actor:t.requester, role:'client', action:'filed this request', note:null}];
-  t.comments.forEach(c=>events.push({at:c.at, actor:c.author, role:c.role||'pic', action:'responded', note:c.text}));
-  if(t.status==='Pending Client Info' && !t.comments.some(c=>c.role==='pic')) events.push({at:t.createdAt, actor:REPS[t.pic].name, role:'pic', action:'requested more information from the client'});
-  if(t.resolvedAt) events.push({at:t.resolvedAt, actor:REPS[t.pic].name, role:'pic', action:'marked this request Resolved'});
-  events.sort((a,b)=>a.at-b.at);
 
   return `
   <div style="margin-bottom:14px;"><button class="btn btn-ghost btn-sm" onclick="STATE.activeTicket=null;render()">← Back to ${esc(backLabel)}</button></div>
@@ -1869,13 +1897,13 @@ function viewTicketDetail(ticketId, mode){
       <div class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:4px;">${t.id} · ${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</div>
       <h1 style="font-size:19px;">${esc(t.subject)}</h1>
     </div>
-    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}${whoseTurnPill(t)}</div>
+    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}${actionTagPill(t)}</div>
   </div>
 
   <div class="detail-meta card card-pad">
     <div class="detail-meta-item"><div class="k">Client</div><div class="v">${client.name}</div></div>
     <div class="detail-meta-item"><div class="k">Requester</div><div class="v">${t.requester}</div></div>
-    <div class="detail-meta-item"><div class="k">Assigned PIC</div><div class="v">${REPS[t.pic].name}</div></div>
+    <div class="detail-meta-item"><div class="k">Assigned to</div><div class="v">${esc(t.assignedToLabel||REPS[t.pic].name)}</div></div>
     ${isStaff?`<div class="detail-meta-item"><div class="k">CSM / Sales</div><div class="v">${CSMS[client.csm].name} / ${CSMS[client.sales].name}</div></div>`:''}
     <div class="detail-meta-item"><div class="k">Related invoice</div><div class="v mono">${t.relatedInvoice||'—'}</div></div>
     <div class="detail-meta-item"><div class="k">SLA due</div><div class="v">${fmtDate(t.slaDue)}</div></div>
@@ -1899,6 +1927,30 @@ function viewTicketDetail(ticketId, mode){
   <div class="section-head" style="margin-top:18px;"><h2>Response Trail</h2><span class="hint">Only between this client and their assigned Finance rep</span></div>
   <div class="card card-pad">
     ${renderResponseTrail(t)}
+    ${(t.status==='Resolved'||t.status==='Closed') ? '' : `
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+    ${isStaff ? `
+      <div class="form-field"><label>To</label><input type="text" id="resp-to" value="${esc(t.requester)} <${emailFor(t.requester)}>" placeholder="Recipient(s), comma-separated"></div>
+      <div class="form-field"><label>Cc <span class="opt">(optional)</span></label><input type="text" id="resp-cc" placeholder="Add Cc recipients, comma-separated"></div>
+      <div class="form-field"><label>Message</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
+      <div class="form-grid" style="margin-top:8px;">
+        <div class="form-field"><label>Tag this ticket</label>
+          <select id="resp-tag" onchange="onTagChange()">${ACTION_TAGS.map(tag=>`<option value="${tag}" ${t.actionTag===tag?'selected':''}>${tag}</option>`).join('')}</select>
+        </div>
+        <div class="form-field" id="resp-assignee-wrap"><label>Assign to</label>
+          <select id="resp-assignee" onchange="updateToFromAssignee()">${assigneeOptionsHtml(t.actionTag, t)}</select>
+        </div>
+      </div>
+      <div class="form-hint" style="margin-top:4px;">Changing "To" above and sending is how a ticket gets endorsed to CSM/Experts by email — not a system reassignment.</div>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="repRespond('${t.id}')">Send response</button>
+    ` : `
+      <div class="form-field"><label>To</label><input type="text" id="client-reply-to" value="${esc(REPS[t.pic].name)} <${emailFor(REPS[t.pic].name)}>" placeholder="Recipient(s), comma-separated"></div>
+      <div class="form-field"><label>Cc <span class="opt">(optional)</span></label><input type="text" id="client-reply-cc" placeholder="Add Cc recipients, comma-separated"></div>
+      <div class="form-field"><label>Message</label><textarea id="client-reply-text" placeholder="Send Finance a follow-up"></textarea></div>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="clientReply('${t.id}')">Send to ${REPS[t.pic].name}</button>
+    `}
+    ${!isStaff ? `<div style="margin-top:12px;">${clientStatusText(t)}</div>` : ''}
+    `}
   </div>
 
   ${(isStaff && t.type==='proof_of_payment') ? `
@@ -1920,70 +1972,130 @@ function viewTicketDetail(ticketId, mode){
 
   <div class="two-col" style="margin-top:18px;">
     <div>
-      <div class="seg" style="margin-bottom:12px;">
-        <button class="seg-btn ${(STATE._ticketDetailTab||'history')==='history'?'active':''}" onclick="STATE._ticketDetailTab='history';render()">History</button>
-        <button class="seg-btn ${STATE._ticketDetailTab==='audit'?'active':''}" onclick="STATE._ticketDetailTab='audit';render()">Audit Trail</button>
-      </div>
+      <div class="section-head"><h2>History</h2></div>
       <div class="card card-pad">
-        ${(STATE._ticketDetailTab||'history')==='history' ? `
-        <div class="timeline">
-          ${events.map(e=>`
-            <div class="timeline-item">
-              <div class="timeline-dot"></div>
-              <div class="timeline-body">
-                <b>${esc(e.actor)}</b> ${e.role==='client'?'<span class="pill pill-info" style="margin-left:2px;">Client</span>':''} ${e.action}
-                <div class="timeline-time">${fmtDateTime(e.at)}</div>
-                ${e.note?`<div class="timeline-note">${esc(e.note)}</div>`:''}
-              </div>
-            </div>`).join('')}
-        </div>` : ''}
-        ${STATE._ticketDetailTab==='audit' ? renderAuditTrail(t) : ''}
+        ${renderHistorySummary(t)}
       </div>
       ${notes.length?`
       <div class="section-head" style="margin-top:18px;"><h2>Internal notes</h2><span class="hint">Visible to Finance only</span></div>
       ${notes.map(n=>`<div class="internal-note" style="margin-bottom:8px;"><b>${CSMS[n.author].name} (${CSMS[n.author].role}):</b> ${esc(n.text)} <span style="color:var(--text-faint);font-weight:400;">— ${fmtDateShort(n.at)}</span></div>`).join('')}
       `:''}
     </div>
+    ${isStaff?`
     <div>
-      <div class="section-head"><h2>${isStaff?'Actions':'Status'}</h2></div>
+      <div class="section-head"><h2>Actions</h2></div>
       <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
-        ${isStaff ? ((t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
+        ${(t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
         ${t.type==='proof_of_payment' ? `<button class="btn btn-primary" onclick="repApprovePosting('${t.id}')">✅ Approve &amp; Post Customer Deposit to NetSuite</button>` : ''}
-        <div class="form-field"><label>Add a response</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
-        <button class="btn btn-primary" onclick="repRespond('${t.id}')">Send response &amp; set In Progress</button>
         <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
         <button class="btn" onclick="repResolve('${t.id}')">Mark Resolved</button>
-        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
-        <div class="form-field"><label>Reassign to</label>
-          <select id="reassign-target">${otherReps.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}</select>
-        </div>
-        <button class="btn" onclick="repReassign('${t.id}')">${mode==='lead'?'Reassign ticket':'Request reassignment (Lead approval)'}</button>
-        `) : clientActionsHtml(t)}
+        `}
       </div>
-    </div>
+    </div>` : ''}
   </div>`;
 }
 
-function clientActionsHtml(t){
+function assigneeOptionsHtml(tag, t){
+  const client = CLIENTS[t.clientId];
+  if(tag==='Finance Action'){
+    return Object.values(REPS).map(r=>`<option value="${r.id}" ${t.pic===r.id?'selected':''}>${r.name}</option>`).join('');
+  }
+  if(tag==='CSM Action'){
+    return Object.values(CSMS).filter(c=>c.role==='CSM').map(c=>`<option value="${c.id}" ${client.csm===c.id?'selected':''}>${c.name}</option>`).join('');
+  }
+  if(tag==='Experts Action'){
+    return Object.values(EXPERTS).map(e=>`<option value="${e.id}">${e.name} — ${e.dept}</option>`).join('');
+  }
+  return `<option value="">— none —</option>`;
+}
+function onTagChange(){
+  const t = TICKETS.find(x=>x.id===STATE.activeTicket);
+  const tag = document.getElementById('resp-tag').value;
+  const wrap = document.getElementById('resp-assignee-wrap');
+  wrap.style.display = tag==='Others' ? 'none' : 'flex';
+  document.getElementById('resp-assignee').innerHTML = assigneeOptionsHtml(tag, t);
+  updateToFromAssignee();
+}
+function updateToFromAssignee(){
+  const t = TICKETS.find(x=>x.id===STATE.activeTicket);
+  const tagEl = document.getElementById('resp-tag');
+  const assigneeEl = document.getElementById('resp-assignee');
+  const toEl = document.getElementById('resp-to');
+  if(!tagEl || !toEl) return;
+  const tag = tagEl.value;
+  const assigneeId = assigneeEl ? assigneeEl.value : '';
+  if(tag==='CSM Action' && CSMS[assigneeId]) toEl.value = `${CSMS[assigneeId].name} <${emailFor(CSMS[assigneeId].name)}>`;
+  else if(tag==='Experts Action' && EXPERTS[assigneeId]) toEl.value = `${EXPERTS[assigneeId].name} <${emailFor(EXPERTS[assigneeId].name)}>`;
+  else if(tag==='Finance Action') toEl.value = `${esc(t.requester)} <${emailFor(t.requester)}>`;
+}
+function applyTagAssignment(t, actorName){
+  const tagEl = document.getElementById('resp-tag');
+  if(!tagEl) return;
+  const tag = tagEl.value;
+  const assigneeEl = document.getElementById('resp-assignee');
+  const assigneeId = assigneeEl ? assigneeEl.value : '';
+  let note = '';
+  if(tag==='Finance Action' && assigneeId && assigneeId!==t.pic){
+    const from = t.pic;
+    t.reassignedFrom = from; t.pic = assigneeId;
+    t.assignedToLabel = REPS[assigneeId].name;
+    note = `Reassigned from ${REPS[from].name} to ${REPS[assigneeId].name}`;
+  } else if(tag==='CSM Action' && CSMS[assigneeId]){
+    t.assignedToLabel = CSMS[assigneeId].name;
+    note = `Endorsed to ${CSMS[assigneeId].name} (CSM)`;
+  } else if(tag==='Experts Action' && EXPERTS[assigneeId]){
+    t.assignedToLabel = EXPERTS[assigneeId].name+' — '+EXPERTS[assigneeId].dept;
+    note = `Endorsed to ${EXPERTS[assigneeId].name} (${EXPERTS[assigneeId].dept})`;
+  } else if(tag==='Others'){
+    t.assignedToLabel = 'Others';
+    note = 'Tagged as Others';
+  } else if(tag==='Finance Action'){
+    t.assignedToLabel = REPS[t.pic].name;
+  }
+  if(tag !== t.actionTag || note){
+    logTagChange(t, tag, note, actorName);
+  }
+}
+function renderHistorySummary(t){
+  const items = [];
+  (t.tagHistory||[]).forEach(h=>items.push({at:h.at, label:h.note||`Tagged: ${h.tag}`}));
+  (t.comments||[]).forEach(c=>items.push({at:c.at, label:`${c.author} replied`}));
+  items.sort((a,b)=>a.at-b.at);
+  const statusPhrase = (t.status==='Resolved'||t.status==='Closed') ? 'Resolved' : `Pending ${t.actionTag}`;
+  return `
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:12px;color:var(--text-faint);">Status:</span><span class="pill ${(t.status==='Resolved'||t.status==='Closed')?'pill-good':(t.actionTag==='CSM Action'?'pill-warning':'pill-info')}"><span class="dot"></span>${esc(statusPhrase)}</span>
+    </div>
+    <div class="timeline">
+      ${items.length? items.map(it=>`
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-body">
+            ${esc(it.label)}
+            <div class="timeline-time">${fmtDateTime(it.at)}</div>
+          </div>
+        </div>`).join('') : `<div class="empty">No activity yet.</div>`}
+    </div>`;
+}
+
+function clientStatusText(t){
   if(t.status==='Resolved'||t.status==='Closed'){
     return `<div class="form-hint">This request is ${t.status.toLowerCase()}. Need something else? File a new request from Disputes &amp; Requests.</div>`;
   }
   if(t.status==='Pending Client Info'){
-    return `
-    <div class="form-hint">${REPS[t.pic].name} asked for more information — reply below to keep this moving.</div>
-    <div class="form-field"><label>Your reply</label><textarea id="client-reply-text" placeholder="Add the details Finance asked for"></textarea></div>
-    <button class="btn btn-primary" onclick="clientReply('${t.id}')">Send reply to ${REPS[t.pic].name}</button>`;
+    return `<div class="form-hint">${REPS[t.pic].name} asked for more information — reply above to keep this moving. Currently with: <b>${esc(t.assignedToLabel||REPS[t.pic].name)}</b> (${esc(t.actionTag)}).</div>`;
   }
-  return `<div class="form-hint">${REPS[t.pic].name} (your assigned Finance PIC) is reviewing this request. You'll get a notification the moment there's an update.</div>`;
+  return `<div class="form-hint">Currently with: <b>${esc(t.assignedToLabel||REPS[t.pic].name)}</b> (${esc(t.actionTag)}). You can send a follow-up message anytime above.</div>`;
 }
 function renderResponseTrail(t){
-  if(!t.comments.length) return `<div class="empty">No responses yet — replying here only goes between this client and their assigned Finance rep, not to anyone else on the original email.</div>`;
+  if(!t.comments.length) return `<div class="empty">No responses yet.</div>`;
   return `<div class="trail">` + t.comments.map(c=>`
     <div class="trail-item">
-      <div class="trail-dot" style="background:${c.role==='client'?'var(--info)':'var(--accent)'};"></div>
+      <div class="trail-avatar" style="background:${c.role==='client'?'var(--info-soft)':'var(--accent-soft)'};color:${c.role==='client'?'var(--info)':'var(--accent-strong)'};">${initialsOf(c.author)}</div>
       <div class="trail-body">
-        <b>${esc(c.author)}</b> ${c.role==='client'?'<span class="pill pill-info" style="margin-left:2px;">Client</span>':'<span class="pill pill-good" style="margin-left:2px;">Finance</span>'}
-        <div class="trail-time">${fmtDateTime(c.at)}</div>
+        <span class="trail-name">${esc(c.author)}</span><span class="trail-time">${relTime(c.at)}</span>
+        ${c.to&&c.to.length?`<div class="trail-to">To: ${c.to.map(r=>esc(r)).join(', ')}</div>`:''}
+        ${c.cc&&c.cc.length?`<div class="trail-to">Cc: ${c.cc.map(r=>esc(r)).join(', ')}</div>`:''}
         <div class="trail-text">${esc(c.text)}</div>
       </div>
     </div>`).join('') + `</div>`;
@@ -2002,7 +2114,11 @@ function clientReply(id){
   const el = document.getElementById('client-reply-text');
   const text = el ? el.value.trim() : '';
   if(!text){ showToast('Add a message before sending.'); return; }
-  t.comments.push({author:CLIENT_USER.name, role:'client', at:new Date(), text});
+  const toEl = document.getElementById('client-reply-to');
+  const to = toEl ? toEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const ccEl = document.getElementById('client-reply-cc');
+  const cc = ccEl ? ccEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  t.comments.push({author:CLIENT_USER.name, role:'client', at:new Date(), text, to, cc});
   t.status='In Progress';
   logAudit(t, 'Status changed to In Progress (client replied)', CLIENT_USER.name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'creply'+Date.now(), for:{type:'rep',id:t.pic}, at:new Date(), text:`${CLIENT_USER.name} replied on "${t.subject}" with the requested info.`, read:false, ticketId:t.id});
@@ -2106,9 +2222,15 @@ function attachmentPreviewBody(filename, t, client){
 function repRespond(id){
   const t = TICKETS.find(x=>x.id===id);
   const text = document.getElementById('resp-text').value.trim();
-  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text||'(followed up with the client)'});
+  const toEl = document.getElementById('resp-to');
+  const to = toEl ? toEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const ccEl = document.getElementById('resp-cc');
+  const cc = ccEl ? ccEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const authorName = REPS[t.pic].name;
+  t.comments.push({author:authorName, role:'pic', at:new Date(), text: text||'(followed up with the client)', to, cc});
+  applyTagAssignment(t, authorName);
   t.status='In Progress';
-  logAudit(t, 'Status changed to In Progress', REPS[t.pic].name);
+  logAudit(t, 'Status changed to In Progress', authorName);
   showToast('Response sent — status set to In Progress');
   render();
 }
@@ -2116,10 +2238,16 @@ function repRequestInfo(id){
   const t = TICKETS.find(x=>x.id===id);
   const el = document.getElementById('resp-text');
   const text = el ? el.value.trim() : '';
+  const toEl = document.getElementById('resp-to');
+  const to = toEl ? toEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const ccEl = document.getElementById('resp-cc');
+  const cc = ccEl ? ccEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const authorName = REPS[t.pic].name;
   t.status='Pending Client Info';
-  t.comments.push({author:REPS[t.pic].name, role:'pic', at:new Date(), text: text || 'Requested more information from the client. SLA clock paused until they respond.'});
-  logAudit(t, 'Status changed to Pending Client Info', REPS[t.pic].name);
-  NOTIFICATIONS.unshift({id:'N'+t.id+'info'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`${REPS[t.pic].name} needs more info on "${t.subject}": "${text || 'Please provide additional details.'}"`, read:false, ticketId:t.id});
+  t.comments.push({author:authorName, role:'pic', at:new Date(), text: text || 'Requested more information from the client. SLA clock paused until they respond.', to, cc});
+  applyTagAssignment(t, authorName);
+  logAudit(t, 'Status changed to Pending Client Info', authorName);
+  NOTIFICATIONS.unshift({id:'N'+t.id+'info'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`${authorName} needs more info on "${t.subject}": "${text || 'Please provide additional details.'}"`, read:false, ticketId:t.id});
   showToast('Marked Pending Client Info — SLA clock paused, client notified');
   render();
 }
@@ -2330,7 +2458,7 @@ function viewLeadTeam(){
     <div class="card">
       <div class="table-wrap">
       <table>
-        <thead><tr><th>Client</th><th>PIC</th><th>Type</th><th>Subject</th><th>Status</th><th>SLA</th><th>Turn</th></tr></thead>
+        <thead><tr><th>Client</th><th>PIC</th><th>Type</th><th>Subject</th><th>Status</th><th>SLA</th><th>Tag</th></tr></thead>
         <tbody>
           ${TICKETS.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,12).map(t=>`
             <tr class="clickable" onclick="openTicket('${t.id}')">
@@ -2340,7 +2468,7 @@ function viewLeadTeam(){
               <td class="wrap">${esc(t.subject)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
-              <td>${whoseTurnPill(t)}</td>
+              <td>${actionTagPill(t)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
