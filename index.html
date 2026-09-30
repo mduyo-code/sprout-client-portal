@@ -696,6 +696,23 @@ function faqMatch(text){
   const lower = text.toLowerCase();
   return FAQ_KB.find(f=>f.tags.some(t=>lower.includes(t)) || lower.includes(f.q.toLowerCase()));
 }
+// Ranked matches (for canned-response suggestions) — same keyword approach,
+// but returns the top few scored matches instead of just the first hit.
+function faqTopMatches(text, limit){
+  const lower = (text||'').toLowerCase();
+  const scored = FAQ_KB.map(f=>({f, score: f.tags.filter(t=>lower.includes(t)).length + (lower.includes(f.q.toLowerCase())?2:0)}))
+    .filter(x=>x.score>0)
+    .sort((a,b)=>b.score-a.score);
+  return scored.slice(0, limit||3).map(x=>x.f);
+}
+
+// Tickets that weren't answered by an existing FAQ get suggested here as
+// new FAQ entries — Team Lead approves before they join FAQ_KB, keeping
+// responses uniform going forward.
+let PENDING_FAQS = [
+  {id:'PF-1', q:'Why is there a gap in official receipt numbers?', a:'Receipt numbers are sequential across all clients, not just yours — gaps between your own receipts are expected and don\u0027t indicate anything missing.', tags:['receipt','numbering','gap'], ticketId:'(from a General Inquiry ticket)', submittedBy:'Nina Abad', submittedAt:d(-1), status:'Pending'},
+];
+let pendingFaqSeq = 2;
 
 let NOTIFICATIONS = [];
 
@@ -777,7 +794,7 @@ const STATE = {
 const NAV = {
   client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   rep:[{id:'queue',label:'My Queue',icon:'📋'},{id:'reconciliation',label:'Bank Reconciliation',icon:'🏦'},{id:'kpi',label:'My Performance',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
-  lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
+  lead:[{id:'team',label:'Team Dashboard',icon:'📊'},{id:'escalations',label:'Escalations',icon:'🚨'},{id:'faqApprovals',label:'FAQ Approvals',icon:'✅'},{id:'reports',label:'Reports & KPIs',icon:'📈'},{id:'notifications',label:'Notifications',icon:'🔔'}],
   csm:[{id:'overview',label:'Account Overview',icon:'👁'},{id:'notifications',label:'Notifications',icon:'🔔'}],
 };
 const ROLE_META = {
@@ -944,6 +961,7 @@ function renderSidebar(){
         if(item.id==='notifications' && unreadCount>0) count = `<span class="badge-count">${unreadCount}</span>`;
         if(item.id==='queue') count = `<span class="badge-count">${openTickets(ticketsForRep(STATE.activeRep)).length}</span>`;
         if(item.id==='escalations'){ const n=allEscalations().length; if(n>0) count=`<span class="badge-count">${n}</span>`; }
+        if(item.id==='faqApprovals'){ const n=PENDING_FAQS.filter(p=>p.status==='Pending').length; if(n>0) count=`<span class="badge-count">${n}</span>`; }
         return `<button class="nav-item ${STATE.view===item.id?'active':''}" onclick="setView('${item.id}')">
           <span>${item.icon} &nbsp;${item.label}</span>${count}
         </button>`;
@@ -1028,6 +1046,7 @@ function renderView(){
     if(STATE.activeTicket) return viewTicketDetail(STATE.activeTicket, 'lead');
     if(STATE.view==='team') return viewLeadTeam();
     if(STATE.view==='escalations') return viewLeadEscalations();
+    if(STATE.view==='faqApprovals') return viewFaqApprovals();
     if(STATE.view==='reports') return viewLeadReports();
     if(STATE.view==='notifications') return viewNotifications('lead');
   }
@@ -1253,6 +1272,96 @@ function sendChatbotMessage(){
 }
 
 /* ---- FAQ gate (shown before filing certain ticket types) ---- */
+/* ---- Canned responses (suggested from FAQ, Freshdesk-style) ---- */
+function cannedSuggestionsHtml(t){
+  const matches = faqTopMatches(`${t.subject} ${t.details||''}`, 3);
+  cannedMatchesCache = matches;
+  if(!matches.length) return `<span class="form-hint">No matching FAQ found — this could be a good candidate to suggest as a new FAQ once resolved.</span>`;
+  return matches.map((f,i)=>`<button type="button" class="btn btn-sm" onclick="insertCannedResponse(${i})" data-canned-idx="${i}">💬 ${esc(f.q)}</button>`).join('');
+}
+let cannedMatchesCache = [];
+function insertCannedResponse(idx){
+  const ta = document.getElementById('resp-text');
+  if(!ta) return;
+  const faq = cannedMatchesCache[idx];
+  if(faq) ta.value = faq.a;
+}
+
+/* ---- Suggest as FAQ (client questions not covered → pending Team Lead approval) ---- */
+function openSuggestFaqModal(ticketId){
+  const t = TICKETS.find(x=>x.id===ticketId);
+  const lastRepReply = [...t.comments].reverse().find(c=>c.role==='pic');
+  openModal(`
+    <div class="modal-head"><div><h3>Suggest as FAQ</h3><p>This won't go live until a Team Lead approves it — keeps responses uniform.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-field full"><label>Question</label><input type="text" id="faq-suggest-q" value="${esc(t.subject)}" style="width:100%;"></div>
+      <div class="form-field full"><label>Answer</label><textarea id="faq-suggest-a" style="width:100%;">${esc(lastRepReply?lastRepReply.text:'')}</textarea></div>
+      <div class="form-field full"><label>Tags <span class="opt">(comma-separated, used for matching)</span></label><input type="text" id="faq-suggest-tags" placeholder="e.g. headcount, roster" style="width:100%;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitFaqSuggestion('${ticketId}')">Submit for approval</button>
+    </div>
+  `);
+}
+function submitFaqSuggestion(ticketId){
+  const q = document.getElementById('faq-suggest-q').value.trim();
+  const a = document.getElementById('faq-suggest-a').value.trim();
+  const tagsRaw = document.getElementById('faq-suggest-tags').value.trim();
+  if(!q || !a){ showToast('Question and answer are both required.'); return; }
+  const tags = tagsRaw ? tagsRaw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean) : [];
+  const rep = REPS[STATE.activeRep];
+  PENDING_FAQS.push({id:'PF-'+(pendingFaqSeq++), q, a, tags, ticketId, submittedBy:rep.name, submittedAt:new Date(), status:'Pending'});
+  showToast('Submitted for Team Lead approval.');
+  closeModal();
+}
+function approveFaqSuggestion(pfId){
+  const pf = PENDING_FAQS.find(x=>x.id===pfId);
+  if(!pf) return;
+  FAQ_KB.push({q:pf.q, a:pf.a, tags:pf.tags.length?pf.tags:[pf.q.toLowerCase()]});
+  pf.status = 'Approved';
+  showToast('Added to the live FAQ library.');
+  render();
+}
+function rejectFaqSuggestion(pfId){
+  const pf = PENDING_FAQS.find(x=>x.id===pfId);
+  if(!pf) return;
+  pf.status = 'Rejected';
+  showToast('Suggestion rejected.');
+  render();
+}
+function viewFaqApprovals(){
+  const pending = PENDING_FAQS.filter(p=>p.status==='Pending');
+  const decided = PENDING_FAQS.filter(p=>p.status!=='Pending');
+  return `
+  ${introBanner(`Client questions that weren't covered by the FAQ get suggested here by Finance Reps. Approving adds them to the live FAQ library — used by the FAQ gate, the chatbot, and canned responses — so future answers stay uniform.`)}
+  <div class="section">
+    <div class="section-head"><h2>Pending approval</h2></div>
+    <div class="card">
+      ${pending.length ? pending.map(pf=>`
+        <div style="padding:14px;border-bottom:1px solid var(--border-soft);">
+          <div style="font-weight:650;font-size:13.5px;">❓ ${esc(pf.q)}</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">${esc(pf.a)}</div>
+          <div style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Suggested by ${esc(pf.submittedBy)} · ${fmtDateTime(pf.submittedAt)} · from ticket ${esc(pf.ticketId)}</div>
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn btn-primary btn-sm" onclick="approveFaqSuggestion('${pf.id}')">Approve</button>
+            <button class="btn btn-sm" onclick="rejectFaqSuggestion('${pf.id}')">Reject</button>
+          </div>
+        </div>`).join('') : `<div class="empty">No pending FAQ suggestions</div>`}
+    </div>
+  </div>
+  ${decided.length ? `
+  <div class="section">
+    <div class="section-head"><h2>Recently decided</h2></div>
+    <div class="card">
+      ${decided.map(pf=>`
+        <div style="display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);font-size:12.5px;">
+          <span>❓ ${esc(pf.q)}</span>
+          <span class="pill ${pf.status==='Approved'?'pill-good':'pill-neutral'}">${pf.status}</span>
+        </div>`).join('')}
+    </div>
+  </div>` : ''}`;
+}
 function renderFaqItem(faq){
   return `<div class="card card-pad faq-item" data-search="${esc((faq.q+' '+faq.tags.join(' ')).toLowerCase())}" style="margin-bottom:8px;">
     <div style="cursor:pointer;font-weight:600;font-size:13px;" onclick="const a=this.nextElementSibling;a.style.display=a.style.display==='none'?'block':'none';showFaqEscalate();">❓ ${esc(faq.q)}</div>
@@ -1859,9 +1968,14 @@ function submitProofOfPayment(){
   TICKETS.unshift(ticket);
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment ${popIsFinanceContext?'uploaded':'submitted'} for ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
   closeModal();
-  showToast(popIsFinanceContext ? `Proof of payment uploaded for ${client.name}` : 'Proof of payment submitted for reconciliation');
-  if(!popIsFinanceContext) setView('payments');
-  else render();
+  showToast(popIsFinanceContext ? `Proof of payment uploaded for ${client.name} — pro-forma entries ready below.` : 'Proof of payment submitted for reconciliation');
+  if(!popIsFinanceContext){
+    setView('payments');
+  } else {
+    STATE.activeTicket = ticket.id;
+    STATE._ticketDetailTab = 'history';
+    render();
+  }
 }
 
 /* ============================================================
@@ -1931,7 +2045,6 @@ function viewRepQueue(){
   <div class="section">
     <div class="section-head">
       <h2>Personal queue</h2>
-      <button class="btn btn-primary btn-sm" onclick="openFinancePopModal()">📤 Upload POP for client</button>
     </div>
     <div class="seg" style="margin-bottom:12px;flex-wrap:wrap;">
       ${REP_CATEGORIES.map(c=>`<button class="seg-btn ${cat===c?'active':''}" onclick="STATE._repCatFilter='${c}';render()">${c}</button>`).join('')}
@@ -2019,6 +2132,10 @@ function viewTicketDetail(ticketId, mode){
     ${isStaff ? `
       <div class="form-field"><label>To</label><input type="text" id="resp-to" value="${esc(t.requester)} <${emailFor(t.requester)}>" placeholder="Recipient(s), comma-separated"></div>
       <div class="form-field"><label>Cc <span class="opt">(optional)</span></label><input type="text" id="resp-cc" placeholder="Add Cc recipients, comma-separated"></div>
+      <div class="form-field full">
+        <label>Canned responses <span class="opt">(from FAQ)</span></label>
+        <div id="canned-suggestions" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">${cannedSuggestionsHtml(t)}</div>
+      </div>
       <div class="form-field"><label>Message</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
       <div class="form-grid" style="margin-top:8px;">
         <div class="form-field"><label>Tag this ticket</label>
@@ -2080,6 +2197,8 @@ function viewTicketDetail(ticketId, mode){
         <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
         <button class="btn" onclick="repResolve('${t.id}')">Mark Resolved</button>
         `}
+        <hr style="border:none;border-top:1px solid var(--border);margin:2px 0;">
+        <button class="btn" onclick="openSuggestFaqModal('${t.id}')">➕ Suggest as FAQ</button>
       </div>
     </div>` : ''}
   </div>`;
@@ -2352,31 +2471,64 @@ function repResolve(id){
   showToast('Ticket marked Resolved — client notified');
   render();
 }
-function renderPostingPreview(t){
+const ALL_POSTING_ACCOUNTS = [...BANK_ACCOUNTS, ...CWT_ACCOUNTS, ...AR_ACCOUNTS];
+let postingLinesState = [];
+let postingLinesTicketId = null;
+function initPostingLines(t){
+  if(postingLinesTicketId===t.id && postingLinesState.length) return;
   const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
   const tax = t.taxWithheld||0;
   const net = gross-tax;
   const bankDefault = BANK_ACCOUNTS.find(b=>b.toLowerCase().includes((t.bank||'').toLowerCase())) || BANK_ACCOUNTS[0];
-  let rows = [
-    {side:'DR', accId:'post-acc-bank', options:BANK_ACCOUNTS, def:bankDefault, memoId:'post-memo-bank', memoDef:`Collection from ${CLIENTS[t.clientId].name}`, refId:'post-ref-bank', refDef:t.refNo||'', amount:net},
+  postingLinesState = [
+    {side:'DR', account:bankDefault, memo:`Collection from ${CLIENTS[t.clientId].name}`, ref:t.refNo||'', amount:net},
   ];
-  if(tax>0){
-    rows.push({side:'DR', accId:'post-acc-cwt', options:CWT_ACCOUNTS, def:CWT_ACCOUNTS[0], memoId:'post-memo-cwt', memoDef:'CWT per BIR Form 2307', refId:'post-ref-cwt', refDef:'2307', amount:tax});
-  }
-  rows.push({side:'CR', accId:'post-acc-ar', options:AR_ACCOUNTS, def:AR_ACCOUNTS[0], memoId:'post-memo-ar', memoDef:`Settlement — ${t.relatedInvoice||'open balance'}`, refId:'post-ref-ar', refDef:t.refNo||'', amount:gross});
+  if(tax>0) postingLinesState.push({side:'DR', account:CWT_ACCOUNTS[0], memo:'CWT per BIR Form 2307', ref:'2307', amount:tax});
+  postingLinesState.push({side:'CR', account:AR_ACCOUNTS[0], memo:`Settlement — ${t.relatedInvoice||'open balance'}`, ref:t.refNo||'', amount:gross});
+  postingLinesTicketId = t.id;
+}
+function syncPostingLinesFromDom(){
+  postingLinesState.forEach((l,i)=>{
+    const side = document.getElementById(`post-side-${i}`); if(side) l.side = side.value;
+    const acc = document.getElementById(`post-acc-${i}`); if(acc) l.account = acc.value;
+    const memo = document.getElementById(`post-memo-${i}`); if(memo) l.memo = memo.value;
+    const ref = document.getElementById(`post-ref-${i}`); if(ref) l.ref = ref.value;
+    const amt = document.getElementById(`post-amt-${i}`); if(amt) l.amount = parseMoney(amt.value);
+  });
+}
+function addPostingLine(){
+  syncPostingLinesFromDom();
+  postingLinesState.push({side:'DR', account:ALL_POSTING_ACCOUNTS[0], memo:'', ref:'', amount:0});
+  renderPostingLinesBody();
+}
+function removePostingLine(idx){
+  syncPostingLinesFromDom();
+  if(postingLinesState.length<=1){ showToast('At least one line is required.'); return; }
+  postingLinesState.splice(idx,1);
+  renderPostingLinesBody();
+}
+function postingLineRowHtml(l, i){
+  return `
+    <tr>
+      <td><select id="post-side-${i}" style="width:64px;"><option ${l.side==='DR'?'selected':''}>DR</option><option ${l.side==='CR'?'selected':''}>CR</option></select></td>
+      <td><select id="post-acc-${i}">${ALL_POSTING_ACCOUNTS.map(o=>`<option ${o===l.account?'selected':''}>${esc(o)}</option>`).join('')}</select></td>
+      <td><input type="text" id="post-memo-${i}" value="${esc(l.memo)}" style="width:100%;"></td>
+      <td><input type="text" id="post-ref-${i}" value="${esc(l.ref)}" style="width:110px;"></td>
+      <td><input type="text" id="post-amt-${i}" value="${l.amount}" style="width:100px;text-align:right;" class="mono"></td>
+      <td><button type="button" class="btn-ghost btn-sm" onclick="removePostingLine(${i})" title="Remove line">✕</button></td>
+    </tr>`;
+}
+function renderPostingLinesBody(){
+  const body = document.getElementById('posting-lines-body');
+  if(body) body.innerHTML = postingLinesState.map((l,i)=>postingLineRowHtml(l,i)).join('');
+}
+function renderPostingPreview(t){
+  initPostingLines(t);
   return `<div class="table-wrap"><table>
-    <thead><tr><th></th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th></tr></thead>
-    <tbody>
-      ${rows.map(r=>`
-        <tr>
-          <td><span class="pill ${r.side==='DR'?'pill-info':'pill-warning'}">${r.side}</span></td>
-          <td><select id="${r.accId}">${r.options.map(o=>`<option ${o===r.def?'selected':''}>${esc(o)}</option>`).join('')}</select></td>
-          <td><input type="text" id="${r.memoId}" value="${esc(r.memoDef)}" style="width:100%;"></td>
-          <td><input type="text" id="${r.refId}" value="${esc(r.refDef)}" style="width:110px;"></td>
-          <td class="mono">${fmtMoney(r.amount)}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+    <thead><tr><th>Type</th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th><th></th></tr></thead>
+    <tbody id="posting-lines-body">${postingLinesState.map((l,i)=>postingLineRowHtml(l,i)).join('')}</tbody>
+  </table></div>
+  <button type="button" class="btn btn-sm" style="margin-top:8px;" onclick="addPostingLine()">➕ Add line</button>`;
 }
 function renderPostedEntryReadonly(t){
   const lines = t.postedLines||[];
@@ -2389,39 +2541,25 @@ function renderPostedEntryReadonly(t){
   </table></div>`;
 }
 function confirmPostToNetSuite(id){
-  const t = TICKETS.find(x=>x.id===id);
-  const bankRef = document.getElementById('post-ref-bank')?.value.trim() || '';
-  const arRef = document.getElementById('post-ref-ar')?.value.trim() || '';
-  if(!bankRef || !arRef){
+  syncPostingLinesFromDom();
+  const missingRef = postingLinesState.some(l=>!l.ref || !l.ref.trim());
+  if(missingRef){
     showToast('Please enter a reference number on every line before posting.');
     return;
   }
-  const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
-  const tax = t.taxWithheld||0;
-  const net = gross-tax;
-  const bankAcc = document.getElementById('post-acc-bank')?.value || BANK_ACCOUNTS[0];
-  const bankMemo = document.getElementById('post-memo-bank')?.value || '';
-  const arAcc = document.getElementById('post-acc-ar')?.value || AR_ACCOUNTS[0];
-  const arMemo = document.getElementById('post-memo-ar')?.value || '';
-  let cwtRow = '';
-  if(tax>0){
-    const cwtAcc = document.getElementById('post-acc-cwt')?.value || CWT_ACCOUNTS[0];
-    const cwtMemo = document.getElementById('post-memo-cwt')?.value || '';
-    const cwtRef = document.getElementById('post-ref-cwt')?.value || '';
-    cwtRow = `<tr><td><span class="pill pill-info">DR</span></td><td>${esc(cwtAcc)}</td><td>${esc(cwtMemo)}</td><td class="mono">${esc(cwtRef)||'—'}</td><td class="mono">${fmtMoney(tax)}</td></tr>`;
-  }
+  const drTotal = postingLinesState.filter(l=>l.side==='DR').reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+  const crTotal = postingLinesState.filter(l=>l.side==='CR').reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+  const unbalanced = Math.round(drTotal) !== Math.round(crTotal);
   openModal(`
     <div class="modal-head"><div><h3>Confirm posting to NetSuite</h3><p>This is the pro-forma entry (NS) that will be posted. Verify before proceeding.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       <div class="table-wrap"><table>
         <thead><tr><th></th><th>Account</th><th>Memo</th><th>Reference</th><th>Amount</th></tr></thead>
         <tbody>
-          <tr><td><span class="pill pill-info">DR</span></td><td>${esc(bankAcc)}</td><td>${esc(bankMemo)}</td><td class="mono">${esc(bankRef)}</td><td class="mono">${fmtMoney(net)}</td></tr>
-          ${cwtRow}
-          <tr><td><span class="pill pill-warning">CR</span></td><td>${esc(arAcc)}</td><td>${esc(arMemo)}</td><td class="mono">${esc(arRef)}</td><td class="mono">${fmtMoney(gross)}</td></tr>
+          ${postingLinesState.map(l=>`<tr><td><span class="pill ${l.side==='DR'?'pill-info':'pill-warning'}">${l.side}</span></td><td>${esc(l.account)}</td><td>${esc(l.memo)}</td><td class="mono">${esc(l.ref)}</td><td class="mono">${fmtMoney(parseFloat(l.amount)||0)}</td></tr>`).join('')}
         </tbody>
       </table></div>
-      <div class="form-hint" style="margin-top:10px;">This step exists specifically to catch mistakes before anything reaches NetSuite.</div>
+      ${unbalanced ? `<div class="banner" style="margin-top:10px;background:var(--critical-soft);border-color:var(--critical);"><span>⚠️</span><div style="font-size:12px;">Debits (${fmtMoney(drTotal)}) and Credits (${fmtMoney(crTotal)}) don't match — double-check before posting.</div></div>` : `<div class="form-hint" style="margin-top:10px;">This step exists specifically to catch mistakes before anything reaches NetSuite.</div>`}
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal()">Go back and review</button>
@@ -2433,26 +2571,9 @@ function repApprovePosting(id){
   const t = TICKETS.find(x=>x.id===id);
   const depositId = 'CD-' + Math.floor(10000+Math.random()*90000);
   t.nsCustomerDepositId = depositId;
-
-  const gross = t.grossAmount||parseMoney(t.amountPaid||'0');
-  const tax = t.taxWithheld||0;
-  const net = gross-tax;
-  const lines = [];
-  const bankAcc = document.getElementById('post-acc-bank')?.value || BANK_ACCOUNTS[0];
-  const bankMemo = document.getElementById('post-memo-bank')?.value || '';
-  const bankRef = document.getElementById('post-ref-bank')?.value || '';
-  lines.push({side:'DR', account:bankAcc, memo:bankMemo, ref:bankRef, amount:net});
-  if(tax>0){
-    const cwtAcc = document.getElementById('post-acc-cwt')?.value || CWT_ACCOUNTS[0];
-    const cwtMemo = document.getElementById('post-memo-cwt')?.value || '';
-    const cwtRef = document.getElementById('post-ref-cwt')?.value || '';
-    lines.push({side:'DR', account:cwtAcc, memo:cwtMemo, ref:cwtRef, amount:tax});
-  }
-  const arAcc = document.getElementById('post-acc-ar')?.value || AR_ACCOUNTS[0];
-  const arMemo = document.getElementById('post-memo-ar')?.value || '';
-  const arRef = document.getElementById('post-ref-ar')?.value || '';
-  lines.push({side:'CR', account:arAcc, memo:arMemo, ref:arRef, amount:gross});
-  t.postedLines = lines;
+  t.postedLines = postingLinesState.map(l=>({side:l.side, account:l.account, memo:l.memo, ref:l.ref, amount:parseFloat(l.amount)||0}));
+  postingLinesState = [];
+  postingLinesTicketId = null;
 
   const amt = t.amountPaid ? '₱'+parseMoney(t.amountPaid).toLocaleString('en-PH') : '';
   if(t.creditMemosApplied && t.creditMemosApplied.length){
@@ -2934,12 +3055,22 @@ function viewBankRecon(){
   const unmatched = BANK_TRANSACTIONS.filter(b=>b.status==='Unmatched').length;
   const matched = BANK_TRANSACTIONS.filter(b=>b.status==='Matched').length;
   const approved = BANK_TRANSACTIONS.filter(b=>b.status==='Approved').length;
+  const f = STATE._btxFilter||{status:'all', q:''};
+  STATE._btxFilter = f;
+  const filtered = BANK_TRANSACTIONS.filter(b=>{
+    if(f.status!=='all' && b.status!==f.status) return false;
+    if(f.q && !b.description.toLowerCase().includes(f.q.toLowerCase()) && !(b.matchedTicketId||'').toLowerCase().includes(f.q.toLowerCase())) return false;
+    return true;
+  });
   return `
   ${introBanner(`This <b>Bank Reconciliation</b> module simulates importing a bank statement, matching transactions to proof-of-payment tickets, and having an Associate approve the match.`)}
   <div class="section">
     <div class="section-head">
       <h2>Bank Reconciliation</h2>
-      <button class="btn btn-primary btn-sm" onclick="importBankStatement()">⬆ Import bank statement</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="openFinancePopModal()">📤 Upload POP for client</button>
+        <button class="btn btn-sm" onclick="importBankStatement()">⬆ Import bank statement</button>
+      </div>
     </div>
     <div class="tiles">
       <div class="tile accent-warning"><div class="tile-label">Unmatched</div><div class="tile-value">${unmatched}</div></div>
@@ -2948,11 +3079,21 @@ function viewBankRecon(){
     </div>
   </div>
   <div class="section">
+    <div class="filters">
+      <div class="field"><label>Status</label>
+        <select onchange="STATE._btxFilter.status=this.value;render()">
+          ${['all','Unmatched','Matched','Approved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Search</label>
+        <div class="search-box"><input type="text" placeholder="Description or ticket" value="${esc(f.q)}" oninput="STATE._btxFilter.q=this.value;render()"></div>
+      </div>
+    </div>
     <div class="card">
       <div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Matched to</th><th>Action</th></tr></thead>
         <tbody>
-          ${BANK_TRANSACTIONS.map(b=>`
+          ${filtered.length? filtered.map(b=>`
             <tr>
               <td>${fmtDateShort(b.date)}</td>
               <td class="wrap">${esc(b.description)}</td>
@@ -2964,7 +3105,7 @@ function viewBankRecon(){
                 ${b.status==='Matched'?`<button class="btn btn-sm btn-primary" onclick="approveMatchedTransaction('${b.id}')">Approve</button>`:''}
                 ${b.status==='Approved'?`<span class="form-hint">by ${esc(b.approvedBy||'')}</span>`:''}
               </td>
-            </tr>`).join('')}
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No transactions match this filter</div></td></tr>`}
         </tbody>
       </table></div>
     </div>
