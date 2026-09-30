@@ -806,7 +806,13 @@ const ROLE_META = {
 
 function setRole(role){ STATE.role=role; STATE.view=NAV[role][0].id; STATE.activeTicket=null; render(); }
 function setView(view){ STATE.view=view; STATE.activeTicket=null; render(); }
-function openTicket(id){ STATE.activeTicket=id; STATE._ticketDetailTab='history'; render(); window.scrollTo({top:0}); }
+function openTicket(id){
+  STATE.activeTicket=id; STATE._ticketDetailTab='history';
+  if(pendingSendInterval) clearInterval(pendingSendInterval);
+  pendingSendData = null;
+  respAttachmentState = null;
+  render(); window.scrollTo({top:0});
+}
 
 /* ---------------- Personal access links (URL hash routing) ----------------
    Each stakeholder can be handed a link like #role=rep&rep=carlo that opens
@@ -1271,23 +1277,145 @@ function sendChatbotMessage(){
   }, 500);
 }
 
-/* ---- FAQ gate (shown before filing certain ticket types) ---- */
-/* ---- Canned responses (suggested from FAQ, Freshdesk-style) ---- */
-function cannedSuggestionsHtml(t){
-  const matches = faqTopMatches(`${t.subject} ${t.details||''}`, 3);
-  cannedMatchesCache = matches;
-  if(!matches.length) return `<span class="form-hint">No matching FAQ found — this could be a good candidate to suggest as a new FAQ once resolved.</span>`;
-  return matches.map((f,i)=>`<button type="button" class="btn btn-sm" onclick="insertCannedResponse(${i})" data-canned-idx="${i}">💬 ${esc(f.q)}</button>`).join('');
+/* ---- Canned responses — Freshdesk-style popup, sourced from the FAQ library ---- */
+let cannedPickerTicketId = null;
+function openCannedResponsePicker(ticketId){
+  cannedPickerTicketId = ticketId;
+  openModal(`
+    <div class="modal-head">
+      <div><h3>📌 Canned responses</h3><p>Pulled from your approved FAQ library — click one to insert it.</p></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-box" style="width:100%;margin-bottom:4px;"><input type="text" id="canned-picker-search" placeholder="Search canned responses..." oninput="filterCannedPicker()" style="width:100%;"></div>
+      <div class="banner" style="padding:8px 10px;margin-bottom:2px;"><span>💡</span><div style="font-size:12px;">New responses come from Finance Reps using "Suggest as FAQ," approved by a Team Lead.</div></div>
+      <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px;">General (${FAQ_KB.length})</div>
+      <div id="canned-picker-list" style="max-height:320px;overflow-y:auto;">${cannedPickerListHtml('')}</div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Close</button></div>
+  `, 'modal-wide');
 }
-let cannedMatchesCache = [];
-function insertCannedResponse(idx){
+function cannedPickerListHtml(query){
+  const q = (query||'').toLowerCase();
+  const items = FAQ_KB.filter(f=>!q || f.q.toLowerCase().includes(q) || f.tags.some(t=>t.includes(q)));
+  if(!items.length) return `<div class="empty">No canned responses match.</div>`;
+  return items.map((f,i)=>{
+    const realIdx = FAQ_KB.indexOf(f);
+    return `<div class="list-row" onclick="insertCannedFromPicker(${realIdx})" style="align-items:flex-start;">
+      <span style="font-size:13px;">${esc(f.q)}</span>
+      <span style="color:var(--text-faint);">›</span>
+    </div>`;
+  }).join('');
+}
+function filterCannedPicker(){
+  const el = document.getElementById('canned-picker-search');
+  document.getElementById('canned-picker-list').innerHTML = cannedPickerListHtml(el?el.value:'');
+}
+function insertCannedFromPicker(faqIdx){
   const ta = document.getElementById('resp-text');
-  if(!ta) return;
-  const faq = cannedMatchesCache[idx];
-  if(faq) ta.value = faq.a;
+  const faq = FAQ_KB[faqIdx];
+  if(ta && faq) ta.value = faq.a;
+  closeModal();
 }
 
-/* ---- Suggest as FAQ (client questions not covered → pending Team Lead approval) ---- */
+/* ---- Basic message formatting (wraps the selected text in the textarea) ---- */
+function wrapRespSelection(before, after){
+  const ta = document.getElementById('resp-text');
+  if(!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const selected = ta.value.slice(start, end) || 'text';
+  ta.value = ta.value.slice(0, start) + before + selected + after + ta.value.slice(end);
+  ta.focus();
+}
+
+/* ---- Attach file to a reply (simple toggle, same pattern used elsewhere) ---- */
+let respAttachmentState = null;
+function toggleRespAttachment(){
+  respAttachmentState = respAttachmentState ? null : 'reply-attachment.pdf';
+  updateRespAttachmentIndicator();
+}
+function updateRespAttachmentIndicator(){
+  const el = document.getElementById('resp-attachment-indicator');
+  if(!el) return;
+  el.innerHTML = respAttachmentState ? `<span class="form-hint">📎 ${esc(respAttachmentState)} attached — <span style="cursor:pointer;color:var(--critical);" onclick="toggleRespAttachment()">remove</span></span>` : '';
+}
+
+/* ---- Send with a 2-minute edit/undo window before it actually delivers ---- */
+let pendingSendData = null;
+let pendingSendInterval = null;
+function startPendingSend(ticketId){
+  const text = document.getElementById('resp-text').value.trim();
+  if(!text){ showToast('Write a message first.'); return; }
+  pendingSendData = {
+    ticketId,
+    text,
+    to: document.getElementById('resp-to').value,
+    cc: document.getElementById('resp-cc').value,
+    tag: document.getElementById('resp-tag').value,
+    assignee: document.getElementById('resp-assignee') ? document.getElementById('resp-assignee').value : '',
+    attachment: respAttachmentState,
+    secondsLeft: 120,
+  };
+  renderPendingSendUI();
+  pendingSendInterval = setInterval(tickPendingSend, 1000);
+}
+function renderPendingSendUI(){
+  const area = document.getElementById('staff-compose-area');
+  if(!area || !pendingSendData) return;
+  const mins = Math.floor(pendingSendData.secondsLeft/60);
+  const secs = String(pendingSendData.secondsLeft%60).padStart(2,'0');
+  area.innerHTML = `
+    <div class="card card-pad" style="background:var(--accent-soft);">
+      <p style="font-size:13px;font-weight:650;margin:0 0 4px;">📨 Sending in ${mins}:${secs}...</p>
+      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">You can still edit this message before it actually goes out.</p>
+      <div class="btn-row">
+        <button class="btn" onclick="editPendingSend()">Edit</button>
+        <button class="btn btn-primary" onclick="finalizePendingSend()">Send now</button>
+      </div>
+    </div>`;
+}
+function tickPendingSend(){
+  if(!pendingSendData) return;
+  pendingSendData.secondsLeft--;
+  if(pendingSendData.secondsLeft<=0){
+    clearInterval(pendingSendInterval);
+    finalizePendingSend();
+    return;
+  }
+  renderPendingSendUI();
+}
+function editPendingSend(){
+  clearInterval(pendingSendInterval);
+  const draft = pendingSendData;
+  pendingSendData = null;
+  render();
+  setTimeout(()=>{
+    const ta = document.getElementById('resp-text'); if(ta) ta.value = draft.text;
+    const toEl = document.getElementById('resp-to'); if(toEl) toEl.value = draft.to;
+    const ccEl = document.getElementById('resp-cc'); if(ccEl) ccEl.value = draft.cc;
+    const tagEl = document.getElementById('resp-tag'); if(tagEl){ tagEl.value = draft.tag; onTagChange(); }
+    const asgEl = document.getElementById('resp-assignee'); if(asgEl) asgEl.value = draft.assignee;
+    respAttachmentState = draft.attachment;
+    updateRespAttachmentIndicator();
+  }, 0);
+}
+function finalizePendingSend(){
+  if(!pendingSendData) return;
+  const d = pendingSendData;
+  pendingSendData = null;
+  const t = TICKETS.find(x=>x.id===d.ticketId);
+  if(!t) return;
+  const to = d.to.split(',').map(s=>s.trim()).filter(Boolean);
+  const cc = d.cc.split(',').map(s=>s.trim()).filter(Boolean);
+  const authorName = REPS[t.pic].name;
+  t.comments.push({author:authorName, role:'pic', at:new Date(), text: d.text||'(followed up with the client)', to, cc, attachment: d.attachment||null});
+  applyTagAssignmentValues(t, d.tag, d.assignee, authorName);
+  t.status='In Progress';
+  logAudit(t, 'Status changed to In Progress', authorName);
+  showToast('Response sent — status set to In Progress');
+  render();
+}
+
 function openSuggestFaqModal(ticketId){
   const t = TICKETS.find(x=>x.id===ticketId);
   const lastRepReply = [...t.comments].reverse().find(c=>c.role==='pic');
@@ -2130,13 +2258,19 @@ function viewTicketDetail(ticketId, mode){
     ${(t.status==='Resolved'||t.status==='Closed') ? '' : `
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     ${isStaff ? `
+    <div id="staff-compose-area">
       <div class="form-field"><label>To</label><input type="text" id="resp-to" value="${esc(t.requester)} <${emailFor(t.requester)}>" placeholder="Recipient(s), comma-separated"></div>
       <div class="form-field"><label>Cc <span class="opt">(optional)</span></label><input type="text" id="resp-cc" placeholder="Add Cc recipients, comma-separated"></div>
-      <div class="form-field full">
-        <label>Canned responses <span class="opt">(from FAQ)</span></label>
-        <div id="canned-suggestions" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">${cannedSuggestionsHtml(t)}</div>
-      </div>
       <div class="form-field"><label>Message</label><textarea id="resp-text" placeholder="Message the client or leave a case note"></textarea></div>
+      <div id="resp-attachment-indicator" style="margin-top:-4px;margin-bottom:8px;"></div>
+      <div style="display:flex;align-items:center;gap:2px;padding:4px 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px;">
+        <button type="button" class="btn-ghost btn-sm" onclick="wrapRespSelection('**','**')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn-ghost btn-sm" onclick="wrapRespSelection('_','_')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn-ghost btn-sm" onclick="wrapRespSelection('__','__')" title="Underline"><u>U</u></button>
+        <span style="width:1px;height:16px;background:var(--border);margin:0 6px;"></span>
+        <button type="button" class="btn-ghost btn-sm" onclick="toggleRespAttachment()" title="Attach file">📎</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="openCannedResponsePicker('${t.id}')" title="Canned responses">💬</button>
+      </div>
       <div class="form-grid" style="margin-top:8px;">
         <div class="form-field"><label>Tag this ticket</label>
           <select id="resp-tag" onchange="onTagChange()">${ACTION_TAGS.map(tag=>`<option value="${tag}" ${t.actionTag===tag?'selected':''}>${tag}</option>`).join('')}</select>
@@ -2146,7 +2280,8 @@ function viewTicketDetail(ticketId, mode){
         </div>
       </div>
       <div class="form-hint" style="margin-top:4px;">Changing "To" above and sending is how a ticket gets endorsed to CSM/Experts by email — not a system reassignment.</div>
-      <button class="btn btn-primary" style="margin-top:8px;" onclick="repRespond('${t.id}')">Send response</button>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="startPendingSend('${t.id}')">Send response</button>
+    </div>
     ` : `
       <div class="form-field"><label>To</label><input type="text" id="client-reply-to" value="${esc(REPS[t.pic].name)} <${emailFor(REPS[t.pic].name)}>" placeholder="Recipient(s), comma-separated"></div>
       <div class="form-field"><label>Cc <span class="opt">(optional)</span></label><input type="text" id="client-reply-cc" placeholder="Add Cc recipients, comma-separated"></div>
@@ -2240,9 +2375,9 @@ function updateToFromAssignee(){
 function applyTagAssignment(t, actorName){
   const tagEl = document.getElementById('resp-tag');
   if(!tagEl) return;
-  const tag = tagEl.value;
-  const assigneeEl = document.getElementById('resp-assignee');
-  const assigneeId = assigneeEl ? assigneeEl.value : '';
+  applyTagAssignmentValues(t, tagEl.value, document.getElementById('resp-assignee')?.value||'', actorName);
+}
+function applyTagAssignmentValues(t, tag, assigneeId, actorName){
   let note = '';
   if(tag==='Finance Action' && assigneeId && assigneeId!==t.pic){
     const from = t.pic;
