@@ -606,7 +606,7 @@ let TICKETS = [
     comments:[{author:'Carlo Reyes', role:'pic', at:d(-3,1), text:'Need the updated BIR Form 2303 for the new entity before we can reissue — following up with the client.'}]}),
   mkTicket({idOffset:0, type:'headcount', clientId:'meridian', requester:'Ana Lim', pic:'carlo', status:'In Progress',
     subject:'Clarify headcount count used for August invoice', relatedInvoice:'INV-10255',
-    reason:'Clarification',
+    reason:'Clarification', bounced:true, bounceReason:'Mailbox full',
     details:'The headcount CSV for INV-10255 lists 214 billable seats — our internal roster shows 211. Please clarify the 3-seat difference before we process payment.',
     attachments:['headcount-notes.pdf'],
     comments:[
@@ -672,6 +672,7 @@ function mkTicket(o){
     attachments:o.attachments||(o.type==='proof_of_payment'?['deposit-slip.jpg']:(o.type==='dispute'?['dispute-support.pdf']:[])),
     reassignedFrom:null,
     nsCustomerDepositId:o.nsCustomerDepositId||null,
+    bounced:o.bounced||false, bounceReason:o.bounceReason||null, privateNotes:o.privateNotes||[],
     postedLines:o.postedLines||null,
     actionTag:'Finance Action', assignedToLabel:REPS[o.pic].name,
     tagHistory:[{tag:'Finance Action', at:created, note:'Ticket filed — assigned to '+REPS[o.pic].name}],
@@ -697,6 +698,7 @@ const FAQ_KB = [
   {q:'How is headcount calculated for billing?', a:'Headcount is based on the approved seat roster for the billing period, cross-checked against the CSV backup attached to each invoice.', tags:['headcount','seats','roster']},
   {q:'Who do I contact about payment issues?', a:'Submit a Proof of Payment or Billing Inquiry ticket and it will be auto-routed to your assigned Finance rep.', tags:['payment','contact','who','reach']},
   {q:'How long does a dispute take to resolve?', a:'Disputes typically follow a 3-business-day SLA, tracked automatically once you file the ticket.', tags:['sla','how long','resolve','when']},
+  {q:'Confirm payment received (with 2307)', a:'Hi,\n\nThis is to confirm that we have received your payment. Please see attached signed 2307 form.', tags:['payment received','confirm payment','2307','confirmation']},
 ];
 function faqMatch(text){
   const lower = text.toLowerCase();
@@ -1334,16 +1336,24 @@ function wrapRespSelection(before, after){
   ta.focus();
 }
 
-/* ---- Attach file to a reply (simple toggle, same pattern used elsewhere) ---- */
+/* ---- Attach file to a reply — real file, 30MB limit, preview on click ---- */
 let respAttachmentState = null;
 function toggleRespAttachment(){
-  respAttachmentState = respAttachmentState ? null : 'reply-attachment.pdf';
-  updateRespAttachmentIndicator();
+  if(respAttachmentState){
+    respAttachmentState = null;
+    delete attachedFilesStore['reply'];
+    updateRespAttachmentIndicator();
+    return;
+  }
+  triggerFileAttach('reply', (file)=>{
+    respAttachmentState = file.name;
+    updateRespAttachmentIndicator();
+  });
 }
 function updateRespAttachmentIndicator(){
   const el = document.getElementById('resp-attachment-indicator');
   if(!el) return;
-  el.innerHTML = respAttachmentState ? `<span class="form-hint">📎 ${esc(respAttachmentState)} attached — <span style="cursor:pointer;color:var(--critical);" onclick="toggleRespAttachment()">remove</span></span>` : '';
+  el.innerHTML = respAttachmentState ? `<span class="form-hint">📎 <span style="cursor:pointer;text-decoration:underline;" onclick="previewAttachedFile('reply')">${esc(respAttachmentState)}</span> attached (max 30MB) — <span style="cursor:pointer;color:var(--critical);" onclick="toggleRespAttachment()">remove</span></span>` : '';
 }
 
 /* ---- Send with a 2-minute edit/undo window before it actually delivers ---- */
@@ -1423,14 +1433,92 @@ function finalizePendingSend(){
   const to = d.to.split(',').map(s=>s.trim()).filter(Boolean);
   const cc = d.cc.split(',').map(s=>s.trim()).filter(Boolean);
   const authorName = REPS[t.pic].name;
-  t.comments.push({author:authorName, role:'pic', at:new Date(), text: d.text||'(followed up with the client)', to, cc, attachment: d.attachment||null});
+  const bounced = Math.random() < 0.12;
+  t.comments.push({author:authorName, role:'pic', at:new Date(), text: d.text||'(followed up with the client)', to, cc, attachment: d.attachment||null, bounced});
   applyTagAssignmentValues(t, d.tag, d.assignee, authorName);
   t.status='In Progress';
   logAudit(t, 'Status changed to In Progress', authorName);
-  showToast('Response sent — status set to In Progress');
+  if(bounced){
+    t.bounced = true;
+    t.bounceReason = ['Mailbox full','Address not found','Message blocked by recipient server'][Math.floor(Math.random()*3)];
+    logAudit(t, `Delivery failed — ${t.bounceReason}`, 'System');
+    showToast(`⚠ Delivery failed: ${t.bounceReason}`);
+  } else {
+    showToast('Response sent — status set to In Progress');
+  }
+  render();
+}
+function renderBouncedSummaryCard(bouncedTickets){
+  const groups = {};
+  bouncedTickets.forEach(t=>{
+    const label = TYPE_META[t.type].label;
+    groups[label] = (groups[label]||0)+1;
+  });
+  const rows = Object.entries(groups).sort((a,b)=>b[1]-a[1]);
+  return `
+  <div class="card card-pad">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div>
+        <div style="font-weight:650;font-size:14px;">Undelivered emails</div>
+        <div style="font-size:12px;color:var(--text-faint);">Across your queue</div>
+      </div>
+      <span style="color:var(--accent-strong);font-size:12.5px;cursor:pointer;" onclick="toggleBouncedDetails()">View details</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:2px;">Type</div>
+    ${rows.map(([label,count])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-soft);">
+        <span style="color:var(--accent-strong);font-size:13px;font-weight:650;">${esc(label)}</span>
+        <span class="mono" style="font-size:13px;">${count}</span>
+      </div>`).join('')}
+    <div id="bounced-details-wrap" style="display:none;margin-top:12px;">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Client</th><th>Subject</th><th>Reason</th><th>Action</th></tr></thead>
+        <tbody>
+          ${bouncedTickets.map(t=>`
+            <tr>
+              <td class="row-title">${CLIENTS[t.clientId].name}</td>
+              <td class="wrap">${esc(t.subject)}</td>
+              <td><span class="pill pill-critical"><span class="dot"></span>${esc(t.bounceReason||'Delivery failed')}</span></td>
+              <td><button class="btn btn-sm" onclick="openTicket('${t.id}')">Open &amp; resend</button> <button class="btn btn-ghost btn-sm" onclick="acknowledgeBounce('${t.id}')">Dismiss</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+  </div>`;
+}
+function toggleBouncedDetails(){
+  const el = document.getElementById('bounced-details-wrap');
+  if(el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+function acknowledgeBounce(id){
+  const t = TICKETS.find(x=>x.id===id);
+  if(t) t.bounced = false;
+  showToast('Dismissed from undelivered list.');
   render();
 }
 
+function openPrivateNoteModal(ticketId){
+  openModal(`
+    <div class="modal-head"><div><h3>Add private note</h3><p>Only visible to Finance — never sent to the client. Use this if a ticket just doesn't need a response.</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-field full"><label>Note</label><textarea id="private-note-text" placeholder="e.g. FYI only from client, no response needed."></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPrivateNote('${ticketId}')">Save note</button>
+    </div>
+  `);
+}
+function submitPrivateNote(ticketId){
+  const t = TICKETS.find(x=>x.id===ticketId);
+  const text = document.getElementById('private-note-text').value.trim();
+  if(!text){ showToast('Write a note first.'); return; }
+  if(!t.privateNotes) t.privateNotes=[];
+  t.privateNotes.push({author:REPS[t.pic].name, at:new Date(), text});
+  showToast('Private note saved.');
+  closeModal();
+  render();
+}
 function openSuggestFaqModal(ticketId){
   const t = TICKETS.find(x=>x.id===ticketId);
   const lastRepReply = [...t.comments].reverse().find(c=>c.role==='pic');
@@ -1772,11 +1860,15 @@ function viewReceipt(invId){
 
 function viewClientRequests(){
   const allMyTickets = ticketsForClient(CLIENT_USER.clientId);
-  const f = STATE._clientReqFilter||{status:'all'};
+  const cat = STATE._clientReqCatFilter||'All';
+  STATE._clientReqCatFilter = cat;
+  const f = STATE._clientReqFilter||{status:'all', q:''};
   STATE._clientReqFilter = f;
   const myTickets = allMyTickets.filter(t=>{
-    if(f.status==='In Progress') return t.status==='In Progress'||t.status==='Pending Client Info';
-    if(f.status!=='all') return t.status===f.status;
+    if(!matchesRepCategory(t, cat)) return false;
+    if(f.status==='In Progress' && !(t.status==='In Progress'||t.status==='Pending Client Info')) return false;
+    if(f.status!=='all' && f.status!=='In Progress' && t.status!==f.status) return false;
+    if(f.q && !t.subject.toLowerCase().includes(f.q.toLowerCase())) return false;
     return true;
   });
   return `
@@ -1785,11 +1877,17 @@ function viewClientRequests(){
       <h2>Disputes & Requests</h2>
       <button class="btn btn-primary" onclick="openNewRequestModal()">+ New request</button>
     </div>
+    <div class="seg" style="margin-bottom:12px;flex-wrap:wrap;">
+      ${REP_CATEGORIES.map(c=>`<button class="seg-btn ${cat===c?'active':''}" onclick="STATE._clientReqCatFilter='${c}';render()">${c}</button>`).join('')}
+    </div>
     <div class="filters">
       <div class="field"><label>Status</label>
         <select onchange="STATE._clientReqFilter.status=this.value;render()">
           ${['all','New','In Progress','Resolved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
         </select>
+      </div>
+      <div class="field"><label>Search</label>
+        <div class="search-box"><input type="text" placeholder="Subject" value="${esc(f.q)}" oninput="STATE._clientReqFilter.q=this.value;render()"></div>
       </div>
     </div>
     <div class="card">
@@ -1942,7 +2040,7 @@ function renderRequestModal(){
       <div class="form-field full"><label>Summary</label><input type="text" id="f-subject" value="${esc(STATE._reqSubjectDraft||'')}" placeholder="Short summary of your request"></div>
       <div class="form-field full"><label>Details</label><textarea id="f-details" placeholder="Add any context the Finance team should know"></textarea></div>
       <div class="form-field full"><label>Attachment <span class="opt">(optional)</span></label>
-        <div class="file-drop" id="f-attach" onclick="this.classList.add('has-file');this.textContent='📎 ${attachmentNameFor(t)} attached'">Click to attach a supporting file</div>
+        <div class="file-drop" id="f-attach" onclick="this.classList.contains('has-file') ? previewAttachedFile('newreq') : triggerFileAttach('newreq', (file)=>{ this.classList.add('has-file'); this.innerHTML = '📎 '+esc(file.name)+' ('+humanFileSize(file.size)+') attached — click to preview'; })">Click to attach a supporting file (max 30MB)</div>
       </div>
     </div>`;
 
@@ -1969,7 +2067,7 @@ function submitNewRequest(){
   const amountEl = document.getElementById('f-amount');
   const amount = amountEl ? amountEl.value.trim() : null;
   const attachEl = document.getElementById('f-attach');
-  const attachments = (attachEl && attachEl.classList.contains('has-file')) ? [attachmentNameFor(t)] : [];
+  const attachments = (attachEl && attachEl.classList.contains('has-file')) ? [attachedFilesStore['newreq']?.name || attachmentNameFor(t)] : [];
   const client = CLIENTS[CLIENT_USER.clientId];
   const ticket = {
     id: nextTicketId(), type:t, clientId:client.id, requester:CLIENT_USER.name, pic:client.pic, status:'New',
@@ -2018,7 +2116,7 @@ function openProofOfPaymentModal(clientId){
       <div class="banner"><span>💡</span><div>Tip: Upload your bank transfer slip or receipt first — we'll auto-read and pre-fill the date, bank, and reference number for you.</div></div>
       <div class="form-field full">
         <label>Proof of payment <span style="color:var(--critical);">*</span></label>
-        <div class="file-drop" id="p-proof-file" onclick="simulateProofRead(this)">Click to attach bank transfer slip / deposit slip / receipt (required)</div>
+        <div class="file-drop" id="p-proof-file" onclick="this.classList.contains('has-file') ? previewAttachedFile('proof') : triggerFileAttach('proof', (file)=>simulateProofRead(file))">Click to attach bank transfer slip / deposit slip / receipt (required, max 30MB)</div>
       </div>
       <div class="two-col">
         <div>
@@ -2062,11 +2160,13 @@ function openProofOfPaymentModal(clientId){
   `, 'modal-wide');
   updatePopCalc();
 }
-function simulateProofRead(el){
+function simulateProofRead(file){
+  const el = document.getElementById('p-proof-file');
+  if(!el) return;
   el.classList.add('has-file');
-  el.textContent = '📎 Reading deposit-slip.jpg…';
+  el.innerHTML = `📎 Reading ${esc(file.name)}…`;
   setTimeout(()=>{
-    el.textContent = '📎 deposit-slip.jpg attached';
+    el.innerHTML = `📎 ${esc(file.name)} (${humanFileSize(file.size)}) attached — click to preview`;
     const bankSelect = document.getElementById('p-bank');
     const sample = ['BPI','BDO','Metrobank','UnionBank'][Math.floor(Math.random()*4)];
     if(bankSelect) bankSelect.value = sample;
@@ -2078,10 +2178,12 @@ function simulateProofRead(el){
   }, 900);
 }
 function addPop2307File(){
-  const n = pop2307Files.length+1;
-  pop2307Files.push(`2307-${n}.pdf`);
-  renderPop2307List();
-  if(pop2307Files.length===1) simulatePop2307Read();
+  const key = `2307-${pop2307Files.length}`;
+  triggerFileAttach(key, (file)=>{
+    pop2307Files.push({name:file.name, key});
+    renderPop2307List();
+    if(pop2307Files.length===1) simulatePop2307Read();
+  });
 }
 function removePop2307File(idx){
   pop2307Files.splice(idx,1);
@@ -2092,7 +2194,7 @@ function renderPop2307List(){
   if(!el) return;
   el.innerHTML = pop2307Files.length ? pop2307Files.map((f,i)=>`
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--accent-soft);border-radius:7px;padding:6px 10px;font-size:12.5px;">
-      <span>📎 ${f}</span><button class="btn-ghost btn-sm" onclick="removePop2307File(${i})">✕</button>
+      <span style="cursor:pointer;text-decoration:underline;" onclick="previewAttachedFile('${f.key}')">📎 ${esc(f.name)}</span><button class="btn-ghost btn-sm" onclick="removePop2307File(${i})">✕</button>
     </div>`).join('') : `<span class="form-hint">No files attached yet.</span>`;
 }
 function simulatePop2307Read(){
@@ -2156,7 +2258,7 @@ function submitProofOfPayment(){
   if(!hasProof){ showToast('Proof of payment attachment is required.'); return; }
   if(!ref){ showToast('Reference / slip # is required.'); return; }
   if(tax>0 && pop2307Files.length===0){ showToast('BIR Form 2307 is required when tax withheld is greater than PHP 0.00.'); return; }
-  const attachments = ['deposit-slip.jpg', ...pop2307Files];
+  const attachments = [attachedFilesStore['proof']?.name || 'deposit-slip.jpg', ...pop2307Files.map(f=>f.name)];
   const ticket = {
     id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:requesterName, pic:client.pic, status:'New',
     subject:`Proof of payment — ${checked.join(', ')||'unapplied'}`,
@@ -2207,9 +2309,10 @@ function repCategoryOf(t){
   if(t.type==='dispute') return classifyDisputeCategory(t);
   return 'Request for Billings';
 }
-const REP_CATEGORIES = ['All','Payment','Invoice Disputes','Request for Billings','Payment Disputes'];
+const REP_CATEGORIES = ['All','Payment','Invoice Disputes','Request for Billings','Payment Disputes','Undelivered'];
 function matchesRepCategory(t, cat){
   if(cat==='All') return true;
+  if(cat==='Undelivered') return !!t.bounced;
   if(cat==='Payment') return t.type==='proof_of_payment';
   if(cat==='Invoice Disputes') return t.type==='dispute' && classifyDisputeCategory(t)==='Invoice Disputes';
   if(cat==='Payment Disputes') return t.type==='dispute' && classifyDisputeCategory(t)==='Payment Disputes';
@@ -2235,6 +2338,7 @@ function viewRepQueue(){
     return true;
   });
 
+  const bouncedCount = list.filter(t=>t.bounced).length;
   return `
   ${justFiled.length?`<div class="banner"><span>🔔</span><div><b>${justFiled.length} new request${justFiled.length>1?'s':''}</b> just auto-assigned to you — ${justFiled.map(t=>`"${esc(t.subject)}"`).join(', ')}.</div></div>`:''}
   <div class="section">
@@ -2251,8 +2355,9 @@ function viewRepQueue(){
       <h2>Personal queue</h2>
     </div>
     <div class="seg" style="margin-bottom:12px;flex-wrap:wrap;">
-      ${REP_CATEGORIES.map(c=>`<button class="seg-btn ${cat===c?'active':''}" onclick="STATE._repCatFilter='${c}';render()">${c}</button>`).join('')}
+      ${REP_CATEGORIES.map(c=>`<button class="seg-btn ${cat===c?'active':''}" onclick="STATE._repCatFilter='${c}';render()">${c}${c==='Undelivered'&&bouncedCount?` <span style="font-size:11px;padding:1px 6px;border-radius:99px;background:var(--critical);color:#fff;margin-left:4px;">${bouncedCount}</span>`:''}</button>`).join('')}
     </div>
+    ${cat==='Undelivered' ? (bouncedCount ? renderBouncedSummaryCard(list.filter(t=>t.bounced)) : `<div class="card card-pad"><div class="empty">No undelivered emails right now.</div></div>`) : `
     <div class="filters">
       <div class="field"><label>Status</label>
         <select onchange="STATE._repFilter.status=this.value;render()">
@@ -2282,6 +2387,7 @@ function viewRepQueue(){
       </table>
       </div>
     </div>
+    `}
   </div>`;
 }
 
@@ -2298,10 +2404,14 @@ function viewTicketDetail(ticketId, mode){
   <div style="margin-bottom:14px;"><button class="btn btn-ghost btn-sm" onclick="STATE.activeTicket=null;render()">← Back to ${esc(backLabel)}</button></div>
   <div class="detail-header">
     <div>
-      <div class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:4px;">${t.id} · ${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</div>
+      <div class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:4px;">${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</div>
       <h1 style="font-size:19px;">${esc(t.subject)}</h1>
     </div>
-    <div style="display:flex;gap:8px;">${statusPill(t.status)}${slaPill(t)}${actionTagPill(t)}</div>
+    <div style="text-align:right;">
+      <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;">Ticket #</div>
+      <div class="mono" style="font-size:18px;font-weight:700;margin-bottom:6px;">${esc(t.id.replace('TCK-','#'))}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">${statusPill(t.status)}${slaPill(t)}${actionTagPill(t)}</div>
+    </div>
   </div>
 
   <div class="detail-meta card card-pad">
@@ -2399,6 +2509,10 @@ function viewTicketDetail(ticketId, mode){
       <div class="section-head" style="margin-top:18px;"><h2>Internal notes</h2><span class="hint">Visible to Finance only</span></div>
       ${notes.map(n=>`<div class="internal-note" style="margin-bottom:8px;"><b>${CSMS[n.author].name} (${CSMS[n.author].role}):</b> ${esc(n.text)} <span style="color:var(--text-faint);font-weight:400;">— ${fmtDateShort(n.at)}</span></div>`).join('')}
       `:''}
+      ${isStaff && t.privateNotes && t.privateNotes.length?`
+      <div class="section-head" style="margin-top:18px;"><h2>Private notes</h2><span class="hint">Visible to Finance only — never sent to the client</span></div>
+      ${t.privateNotes.map(n=>`<div class="internal-note" style="margin-bottom:8px;"><b>${esc(n.author)}:</b> ${esc(n.text)} <span style="color:var(--text-faint);font-weight:400;">— ${fmtDateShort(n.at)}</span></div>`).join('')}
+      `:''}
     </div>
     ${isStaff?`
     <div>
@@ -2413,6 +2527,7 @@ function viewTicketDetail(ticketId, mode){
         `}
         <hr style="border:none;border-top:1px solid var(--border);margin:2px 0;">
         <button class="btn" onclick="openSuggestFaqModal('${t.id}')">➕ Suggest as FAQ</button>
+        <button class="btn" onclick="openPrivateNoteModal('${t.id}')">📝 Add private note</button>
       </div>
     </div>` : ''}
   </div>`;
@@ -2550,6 +2665,50 @@ function clientReply(id){
 }
 
 /* ---- Attachments (simulated uploads, rendered as document previews) ---- */
+/* ---- Real file attachment: 30MB limit, live preview of what was actually picked ---- */
+const MAX_ATTACH_BYTES = 30*1024*1024;
+let attachedFilesStore = {};
+function humanFileSize(bytes){
+  if(bytes < 1024) return bytes+' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+}
+function triggerFileAttach(key, onAttached){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.style.display = 'none';
+  input.onchange = () => {
+    const file = input.files[0];
+    input.remove();
+    if(!file) return;
+    if(file.size > MAX_ATTACH_BYTES){
+      showToast(`"${file.name}" is ${humanFileSize(file.size)} — the limit is 30MB. Please choose a smaller file.`);
+      return;
+    }
+    attachedFilesStore[key] = file;
+    onAttached(file);
+  };
+  document.body.appendChild(input);
+  input.click();
+}
+function previewAttachedFile(key){
+  const file = attachedFilesStore[key];
+  if(!file){ showToast('No file to preview.'); return; }
+  const url = URL.createObjectURL(file);
+  let bodyHtml;
+  if(file.type.startsWith('image/')){
+    bodyHtml = `<img src="${url}" style="max-width:100%;border-radius:8px;display:block;">`;
+  } else if(file.type==='application/pdf'){
+    bodyHtml = `<iframe src="${url}" style="width:100%;height:60vh;border:1px solid var(--border);border-radius:8px;"></iframe>`;
+  } else {
+    bodyHtml = `<div class="form-hint">No inline preview for this file type — use Download to open it.</div>`;
+  }
+  openModal(`
+    <div class="modal-head"><div><h3>${esc(file.name)}</h3><p>${humanFileSize(file.size)} · ${esc(file.type||'Unknown type')}</p></div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">${bodyHtml}</div>
+    <div class="modal-foot"><a class="btn" href="${url}" download="${esc(file.name)}">Download</a><button class="btn btn-primary" onclick="closeModal()">Close</button></div>
+  `, 'modal-wide');
+}
 function fileIcon(filename){
   if(/\.pdf$/i.test(filename)) return '📄';
   if(/\.(jpg|jpeg|png)$/i.test(filename)) return '🖼️';
