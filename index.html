@@ -261,7 +261,10 @@ textarea{resize:vertical;min-height:70px;}
 .file-drop:hover{border-color:var(--accent);}
 .file-drop.has-file{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-strong);border-style:solid;}
 .invoice-check-list{display:flex;flex-direction:column;gap:7px;max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:9px;}
-.invoice-check-list label{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+.invoice-check-list label{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 8px;border-radius:7px;cursor:pointer;}
+.invoice-check-list label:hover{background:var(--surface-2);}
+.field-2307-highlight{border:1.5px solid var(--warning);background:var(--warning-soft);border-radius:var(--radius);padding:10px 12px;transition:background .2s,border-color .2s;}
+.tooltip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--surface-3);color:var(--text-faint);font-size:10px;cursor:help;margin-left:4px;}
 
 /* modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(15,20,12,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
@@ -429,6 +432,9 @@ function fmtMoney(n){
 }
 function fmtMoneyShort(n){
   return '₱'+Math.round(n).toLocaleString('en-PH');
+}
+function fmtPHP(n){
+  return 'PHP '+(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1354,7 +1360,7 @@ function startPendingSend(ticketId){
     tag: document.getElementById('resp-tag').value,
     assignee: document.getElementById('resp-assignee') ? document.getElementById('resp-assignee').value : '',
     attachment: respAttachmentState,
-    secondsLeft: 120,
+    secondsLeft: 60,
   };
   renderPendingSendUI();
   pendingSendInterval = setInterval(tickPendingSend, 1000);
@@ -1362,11 +1368,20 @@ function startPendingSend(ticketId){
 function renderPendingSendUI(){
   const area = document.getElementById('staff-compose-area');
   if(!area || !pendingSendData) return;
-  const mins = Math.floor(pendingSendData.secondsLeft/60);
-  const secs = String(pendingSendData.secondsLeft%60).padStart(2,'0');
+  const d = pendingSendData;
+  const mins = Math.floor(d.secondsLeft/60);
+  const secs = String(d.secondsLeft%60).padStart(2,'0');
   area.innerHTML = `
     <div class="card card-pad" style="background:var(--accent-soft);">
-      <p style="font-size:13px;font-weight:650;margin:0 0 4px;">📨 Sending in ${mins}:${secs}...</p>
+      <p style="font-size:13px;font-weight:650;margin:0 0 10px;">📨 Sending in ${mins}:${secs}...</p>
+      <div class="card card-pad" style="background:var(--surface);margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Reply overview</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px;"><b>To:</b> ${esc(d.to)||'—'}</div>
+        ${d.cc ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:2px;"><b>Cc:</b> ${esc(d.cc)}</div>` : ''}
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;"><b>Tag:</b> ${esc(d.tag)}</div>
+        <div style="font-size:13px;color:var(--text);white-space:pre-wrap;border-top:1px solid var(--border-soft);padding-top:6px;">${esc(d.text)}</div>
+        ${d.attachment ? `<div style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">📎 ${esc(d.attachment)}</div>` : ''}
+      </div>
       <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">You can still edit this message before it actually goes out.</p>
       <div class="btn-row">
         <button class="btn" onclick="editPendingSend()">Edit</button>
@@ -1490,11 +1505,29 @@ function viewFaqApprovals(){
     </div>
   </div>` : ''}`;
 }
-function renderFaqItem(faq){
+function renderFaqItem(faq, idx){
   return `<div class="card card-pad faq-item" data-search="${esc((faq.q+' '+faq.tags.join(' ')).toLowerCase())}" style="margin-bottom:8px;">
     <div style="cursor:pointer;font-weight:600;font-size:13px;" onclick="const a=this.nextElementSibling;a.style.display=a.style.display==='none'?'block':'none';showFaqEscalate();">❓ ${esc(faq.q)}</div>
-    <div style="display:none;font-size:12.5px;color:var(--text-muted);margin-top:8px;">${esc(faq.a)}</div>
+    <div style="display:none;">
+      <div style="font-size:12.5px;color:var(--text-muted);margin-top:8px;">${esc(faq.a)}</div>
+      <div id="faq-feedback-${idx}" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+        <span style="font-size:12px;color:var(--text-faint);">Did this answer your question?</span>
+        <div class="btn-row" style="margin-top:6px;">
+          <button type="button" class="btn btn-sm" onclick="faqFeedbackYes(${idx})">Yes</button>
+          <button type="button" class="btn btn-sm" onclick="faqFeedbackNo(${idx})">Still need help</button>
+        </div>
+      </div>
+    </div>
   </div>`;
+}
+function faqFeedbackYes(idx){
+  const el = document.getElementById(`faq-feedback-${idx}`);
+  if(el) el.innerHTML = `<p style="font-size:12.5px;color:var(--good);margin:0;">🌱 Glad we could help! Let us know if anything else comes up.</p>`;
+}
+function faqFeedbackNo(idx){
+  const el = document.getElementById(`faq-feedback-${idx}`);
+  if(el) el.innerHTML = `<p style="font-size:12px;color:var(--text-faint);margin:0;">No problem — use the button below to file a ticket.</p>`;
+  showFaqEscalate();
 }
 function showFaqEscalate(){
   const wrap = document.getElementById('faq-escalate-wrap');
@@ -1738,12 +1771,26 @@ function viewReceipt(invId){
 }
 
 function viewClientRequests(){
-  const myTickets = ticketsForClient(CLIENT_USER.clientId);
+  const allMyTickets = ticketsForClient(CLIENT_USER.clientId);
+  const f = STATE._clientReqFilter||{status:'all'};
+  STATE._clientReqFilter = f;
+  const myTickets = allMyTickets.filter(t=>{
+    if(f.status==='In Progress') return t.status==='In Progress'||t.status==='Pending Client Info';
+    if(f.status!=='all') return t.status===f.status;
+    return true;
+  });
   return `
   <div class="section">
     <div class="section-head">
       <h2>Disputes & Requests</h2>
       <button class="btn btn-primary" onclick="openNewRequestModal()">+ New request</button>
+    </div>
+    <div class="filters">
+      <div class="field"><label>Status</label>
+        <select onchange="STATE._clientReqFilter.status=this.value;render()">
+          ${['all','New','In Progress','Resolved'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s==='all'?'All':s}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="card">
       <div class="table-wrap">
@@ -1751,14 +1798,14 @@ function viewClientRequests(){
         <thead><tr><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Tag</th></tr></thead>
         <tbody>
           ${myTickets.length? myTickets.map(t=>`
-            <tr class="clickable" onclick="openTicket('${t.id}')">
+            <tr class="clickable" onclick="openTicket('${t.id}')" ${(f.status==='all' && t.status==='Resolved')?'style="opacity:.55;"':''}>
               <td>${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</td>
               <td class="wrap"><div class="row-title">${esc(t.subject)}</div>${t.relatedInvoice?`<div class="row-sub mono">${t.relatedInvoice}</div>`:''}</td>
               <td>${fmtDateShort(t.createdAt)}</td>
               <td>${statusPill(t.status)}</td>
               <td>${slaPill(t)}</td>
               <td>${actionTagPill(t)}</td>
-            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No requests filed yet</div></td></tr>`}
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No requests match this filter</div></td></tr>`}
         </tbody>
       </table>
       </div>
@@ -1881,7 +1928,7 @@ function renderRequestModal(){
     </div>
     <div class="form-field full"><label>What's your question about?</label><input type="text" id="faq-subject" value="${esc(STATE._reqSubjectDraft||'')}" placeholder="e.g. incorrect headcount, late payment fee..." oninput="STATE._reqSubjectDraft=this.value;filterFaqList()" style="width:100%;"></div>
     <div class="form-hint" style="margin:-6px 0 10px;"><i>Sample FAQs shown here — replace with your real FAQ content.</i></div>
-    <div id="faq-list">${FAQ_KB.map(renderFaqItem).join('')}</div>
+    <div id="faq-list">${FAQ_KB.map((f,i)=>renderFaqItem(f,i)).join('')}</div>
     <div id="faq-escalate-wrap" style="display:none;">
       <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="STATE._reqFaqPassed=true;renderRequestModal()">This didn't answer my question — file a ticket</button>
     </div>
@@ -1936,9 +1983,18 @@ function submitNewRequest(){
   TICKETS.unshift(ticket);
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`New ${TYPE_META[t].label.toLowerCase()} filed by ${client.name} — auto-assigned to you.`, read:false, ticketId:ticket.id});
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'b', for:{type:'lead'}, at:new Date(), text:`${client.name} filed a ${TYPE_META[t].label.toLowerCase()} — routed to ${REPS[client.pic].name}.`, read:false, ticketId:ticket.id});
-  closeModal();
-  showToast(`Request submitted — routed to ${REPS[client.pic].name}`);
   setView('requests');
+  showSproutConfirmModal("Your request has been planted with your Finance team — an associate will take a look and get back to you soon. Watch your notifications for updates.");
+}
+function showSproutConfirmModal(msg){
+  openModal(`
+    <div style="text-align:center;padding:20px 10px;">
+      <div style="font-size:40px;">🌱</div>
+      <p style="font-size:14.5px;font-weight:650;margin:14px 0 6px;">We've got it!</p>
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">${esc(msg)}</p>
+      <button class="btn btn-primary" style="width:100%;" onclick="closeModal()">Got it, thanks!</button>
+    </div>
+  `);
 }
 
 /* ---- Proof of payment modal ---- */
@@ -1959,32 +2015,32 @@ function openProofOfPaymentModal(clientId){
       <div class="form-field full"><label>Client</label>
         <select id="p-client-select" onchange="openProofOfPaymentModal(this.value)">${myClients.map(c=>`<option value="${c.id}" ${c.id===popClientId?'selected':''}>${c.name}</option>`).join('')}</select>
       </div>` : ''}
-      <div class="banner"><span>💡</span><div>If you want this portion to be auto-populated, upload the proof of payment and BIR 2307 first — we'll read the amounts for you.</div></div>
+      <div class="banner"><span>💡</span><div>Tip: Upload your bank transfer slip or receipt first — we'll auto-read and pre-fill the date, bank, and reference number for you.</div></div>
+      <div class="form-field full">
+        <label>Proof of payment <span style="color:var(--critical);">*</span></label>
+        <div class="file-drop" id="p-proof-file" onclick="simulateProofRead(this)">Click to attach bank transfer slip / deposit slip / receipt (required)</div>
+      </div>
       <div class="two-col">
         <div>
           <div class="form-field"><label>Receiving bank</label>
             <select id="p-bank"><option>BPI</option><option>BDO</option><option>Metrobank</option><option>UnionBank</option><option>Other</option></select>
           </div>
           <div class="form-field"><label>Payment date</label><input type="date" id="p-date" value="${new Date().toISOString().slice(0,10)}"></div>
-          <div class="form-field"><label>Reference / slip #</label><input type="text" id="p-ref" placeholder="e.g. TX-88213"></div>
+          <div class="form-field"><label>Reference / slip # <span style="color:var(--critical);">*</span><span class="tooltip-icon" title="Can usually be found on your bank transfer slip or deposit receipt.">?</span></label><input type="text" id="p-ref" placeholder="e.g. TX-88213"></div>
           <div class="form-field full"><label>Apply to invoice(s)</label>
             <div class="invoice-check-list">
-              ${unpaid.map(i=>`<label><input type="checkbox" name="p-inv" value="${i.id}" data-amount="${i.amount}" onchange="updatePopCalc()">${i.id} — ${i.period} (${fmtMoneyShort(i.amount)})</label>`).join('') || '<span class="form-hint">No open invoices to apply to.</span>'}
+              ${unpaid.map(i=>`<label><input type="checkbox" name="p-inv" value="${i.id}" data-amount="${i.amount}" onchange="updatePopCalc()">${i.id} — ${i.period} (${fmtPHP(i.amount)})</label>`).join('') || '<span class="form-hint">No open invoices to apply to.</span>'}
             </div>
           </div>
           ${openCMs.length ? `
           <div class="form-field full"><label>Apply open Credit Memo(s)</label>
             <div class="invoice-check-list">
-              ${openCMs.map(cm=>`<label><input type="checkbox" name="p-cm" value="${cm.id}" data-amount="${cm.amount}" onchange="updatePopCalc()">${cm.id} — ${esc(cm.reason)} (−${fmtMoneyShort(cm.amount)})</label>`).join('')}
+              ${openCMs.map(cm=>`<label><input type="checkbox" name="p-cm" value="${cm.id}" data-amount="${cm.amount}" onchange="updatePopCalc()">${cm.id} — ${esc(cm.reason)} (−${fmtPHP(cm.amount)})</label>`).join('')}
             </div>
           </div>` : ''}
-          <div class="form-field full">
-            <label>Proof of payment <span style="color:var(--critical);">*</span></label>
-            <div class="file-drop" id="p-proof-file" onclick="this.classList.add('has-file');this.textContent='📎 deposit-slip.jpg attached'">Click to attach bank transfer slip / deposit slip / receipt (required)</div>
-          </div>
-          <div class="form-field full">
+          <div class="form-field full" id="p-2307-wrap">
             <label>BIR Form 2307 <span id="p-2307-req-mark" style="color:var(--critical);">*</span></label>
-            <div class="form-hint" style="margin:-2px 0 6px;">Required only if tax withheld (WHT) is greater than ₱0.</div>
+            <div class="form-hint" style="margin:-2px 0 6px;">Required only if tax withheld (WHT) is greater than PHP 0.00.</div>
             <div id="p-2307-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
             <button class="btn btn-sm" onclick="addPop2307File()">+ Add 2307 file</button>
           </div>
@@ -1992,8 +2048,8 @@ function openProofOfPaymentModal(clientId){
         <div>
           <div class="card card-pad" style="position:sticky;top:0;">
             <p style="font-weight:650;font-size:13px;margin-bottom:10px;">🧮 Payment calculator</p>
-            <div class="form-field"><label>Collection amount</label><input type="text" id="p-gross" placeholder="₱ 0.00" oninput="updatePopCalc()"></div>
-            <div class="form-field"><label>Tax withheld (2307)</label><input type="text" id="p-tax" placeholder="₱ 0.00" oninput="updatePopCalc()"></div>
+            <div class="form-field"><label>Collection amount</label><input type="text" id="p-gross" placeholder="PHP 0.00" oninput="updatePopCalc()"></div>
+            <div class="form-field"><label>Tax withheld (2307)</label><input type="text" id="p-tax" placeholder="PHP 0.00" oninput="updatePopCalc()"></div>
             <div id="pop-calc-body" style="margin-top:6px;"></div>
           </div>
         </div>
@@ -2005,6 +2061,21 @@ function openProofOfPaymentModal(clientId){
     </div>
   `, 'modal-wide');
   updatePopCalc();
+}
+function simulateProofRead(el){
+  el.classList.add('has-file');
+  el.textContent = '📎 Reading deposit-slip.jpg…';
+  setTimeout(()=>{
+    el.textContent = '📎 deposit-slip.jpg attached';
+    const bankSelect = document.getElementById('p-bank');
+    const sample = ['BPI','BDO','Metrobank','UnionBank'][Math.floor(Math.random()*4)];
+    if(bankSelect) bankSelect.value = sample;
+    const dateEl = document.getElementById('p-date');
+    if(dateEl) dateEl.value = new Date().toISOString().slice(0,10);
+    const refEl = document.getElementById('p-ref');
+    if(refEl && !refEl.value) refEl.value = 'TX-'+Math.floor(10000+Math.random()*89999);
+    showToast('Date, bank, and reference pre-filled from the upload.');
+  }, 900);
 }
 function addPop2307File(){
   const n = pop2307Files.length+1;
@@ -2032,8 +2103,8 @@ function simulatePop2307Read(){
     const basis = checked.length ? checked.reduce((s,el)=>s+parseFloat(el.dataset.amount),0) : (INVOICES.find(i=>i.status!=='Paid')||{amount:50000}).amount;
     const gross = Math.round(basis);
     const tax = Math.round(gross*0.02);
-    const g = document.getElementById('p-gross'); if(g) g.value = fmtMoney(gross);
-    const t = document.getElementById('p-tax'); if(t) t.value = fmtMoney(tax);
+    const g = document.getElementById('p-gross'); if(g) g.value = fmtPHP(gross);
+    const t = document.getElementById('p-tax'); if(t) t.value = fmtPHP(tax);
     const reading = document.getElementById('pop-reading'); if(reading) reading.remove();
     updatePopCalc();
   }, 1100);
@@ -2043,28 +2114,31 @@ function updatePopCalc(){
   const checkedCMs = Array.from(document.querySelectorAll('input[name=p-cm]:checked'));
   const invoiceTotal = checked.reduce((s,el)=>s+parseFloat(el.dataset.amount),0);
   const cmTotal = checkedCMs.reduce((s,el)=>s+parseFloat(el.dataset.amount),0);
-  const selectedTotal = invoiceTotal-cmTotal;
+  const netPayable = invoiceTotal-cmTotal;
   const gross = parseMoney(document.getElementById('p-gross')?.value||'0');
   const tax = parseMoney(document.getElementById('p-tax')?.value||'0');
-  const net = gross-tax;
-  const variance = Math.round(net-selectedTotal);
+  const netEntered = gross-tax;
+  const variance = Math.round(netEntered-netPayable);
+
   const reqMark = document.getElementById('p-2307-req-mark');
   if(reqMark) reqMark.style.display = tax>0 ? 'inline' : 'none';
+  const wrap = document.getElementById('p-2307-wrap');
+  if(wrap){ if(tax>0) wrap.classList.add('field-2307-highlight'); else wrap.classList.remove('field-2307-highlight'); }
+
   const body = document.getElementById('pop-calc-body');
   if(!body) return;
-  let varianceHtml;
-  if(variance>0){
-    varianceHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--critical-soft);border-color:var(--critical);"><span>⚠️</span><div style="font-size:12px;color:var(--critical);">Overpayment of <b>${fmtMoneyShort(variance)}</b> versus selected invoices.</div></div>`;
-  } else if(variance<0){
-    varianceHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--critical-soft);border-color:var(--critical);"><span>⚠️</span><div style="font-size:12px;color:var(--critical);">Underpayment of <b>${fmtMoneyShort(Math.abs(variance))}</b> versus selected invoices.</div></div>`;
+  let badgeHtml;
+  if(variance===0){
+    badgeHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--good-soft);border-color:var(--good);"><span>✅</span><div style="font-size:12px;color:var(--good);">Matches selected invoices.</div></div>`;
   } else {
-    varianceHtml = `<div class="form-hint" style="margin-top:6px;color:var(--good);">✓ Matches selected invoices.</div>`;
+    const label = variance>0 ? 'Overpayment' : 'Underpayment';
+    badgeHtml = `<div class="banner" style="margin:8px 0 0;padding:8px 10px;background:var(--warning-soft);border-color:var(--warning);"><span>⚠️</span><div style="font-size:12px;color:var(--warning);">${label} of <b>${fmtPHP(Math.abs(variance))}</b> versus selected invoices.</div></div>`;
   }
   body.innerHTML = `
-    <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-top:1px solid var(--border);"><span>Selected invoices</span><span class="mono">${fmtMoneyShort(invoiceTotal)}</span></div>
-    ${cmTotal>0?`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;"><span>Less: Credit memos applied</span><span class="mono">−${fmtMoneyShort(cmTotal)}</span></div>`:''}
-    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:6px 0;border-top:1px solid var(--border);"><span>Total payment</span><span class="mono">${fmtMoneyShort(net)}</span></div>
-    ${varianceHtml}
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-top:1px solid var(--border);"><span>Selected invoices</span><span class="mono">${fmtPHP(invoiceTotal)}</span></div>
+    ${cmTotal>0?`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;"><span>Less: Credit memos applied</span><span class="mono">−${fmtPHP(cmTotal)}</span></div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:6px 0;border-top:1px solid var(--border);"><span>Total payment</span><span class="mono">${fmtPHP(netEntered)}</span></div>
+    ${badgeHtml}
   `;
 }
 function submitProofOfPayment(){
@@ -2080,7 +2154,8 @@ function submitProofOfPayment(){
   const requesterName = popIsFinanceContext ? `${REPS[STATE.activeRep].name} (uploaded on behalf of ${client.name})` : CLIENT_USER.name;
   const hasProof = document.getElementById('p-proof-file').classList.contains('has-file');
   if(!hasProof){ showToast('Proof of payment attachment is required.'); return; }
-  if(tax>0 && pop2307Files.length===0){ showToast('BIR Form 2307 is required when tax withheld is greater than ₱0.'); return; }
+  if(!ref){ showToast('Reference / slip # is required.'); return; }
+  if(tax>0 && pop2307Files.length===0){ showToast('BIR Form 2307 is required when tax withheld is greater than PHP 0.00.'); return; }
   const attachments = ['deposit-slip.jpg', ...pop2307Files];
   const ticket = {
     id: nextTicketId(), type:'proof_of_payment', clientId:client.id, requester:requesterName, pic:client.pic, status:'New',
@@ -2095,11 +2170,12 @@ function submitProofOfPayment(){
   };
   TICKETS.unshift(ticket);
   NOTIFICATIONS.unshift({id:'N'+ticket.id+'a', for:{type:'rep',id:client.pic}, at:new Date(), text:`Proof of payment ${popIsFinanceContext?'uploaded':'submitted'} for ${client.name} — awaiting reconciliation.`, read:false, ticketId:ticket.id});
-  closeModal();
-  showToast(popIsFinanceContext ? `Proof of payment uploaded for ${client.name} — pro-forma entries ready below.` : 'Proof of payment submitted for reconciliation');
   if(!popIsFinanceContext){
     setView('payments');
+    showSproutConfirmModal("Your proof of payment has been planted with your Finance team — an associate will take a look and get back to you soon. Watch your notifications for updates.");
   } else {
+    closeModal();
+    showToast(`Proof of payment uploaded for ${client.name} — pro-forma entries ready below.`);
     STATE.activeTicket = ticket.id;
     STATE._ticketDetailTab = 'history';
     render();
@@ -2193,7 +2269,7 @@ function viewRepQueue(){
         <thead><tr><th>Client</th><th>Type</th><th>Subject</th><th>Filed</th><th>Status</th><th>SLA</th><th>Tag</th></tr></thead>
         <tbody>
           ${filtered.length? filtered.map(t=>`
-            <tr class="clickable" onclick="openTicket('${t.id}')">
+            <tr class="clickable" onclick="openTicket('${t.id}')" ${(f.status==='all' && t.status==='Resolved')?'style="opacity:.55;"':''}>
               <td class="row-title">${CLIENTS[t.clientId].name}</td>
               <td>${TYPE_META[t.type].icon} ${TYPE_META[t.type].label}</td>
               <td class="wrap">${esc(t.subject)}</td>
@@ -2328,7 +2404,10 @@ function viewTicketDetail(ticketId, mode){
     <div>
       <div class="section-head"><h2>Actions</h2></div>
       <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;">
-        ${(t.status==='Resolved'||t.status==='Closed') ? `<div class="form-hint">This ticket is ${t.status.toLowerCase()}.</div>` : `
+        ${t.status==='Resolved' ? `
+        <div class="form-hint">This ticket is resolved.</div>
+        <button class="btn" onclick="repCloseTicket('${t.id}')">Close ticket</button>
+        ` : t.status==='Closed' ? `<div class="form-hint">This ticket is closed. It's hidden from the queue unless Status is set to "All".</div>` : `
         <button class="btn" onclick="repRequestInfo('${t.id}')">Request more info from client</button>
         <button class="btn" onclick="repResolve('${t.id}')">Mark Resolved</button>
         `}
@@ -2604,6 +2683,14 @@ function repResolve(id){
   logAudit(t, 'Status changed to Resolved', REPS[t.pic].name);
   NOTIFICATIONS.unshift({id:'N'+t.id+'res'+Date.now(), for:{type:'client',id:t.clientId}, at:new Date(), text:`Your request "${t.subject}" was marked Resolved.${text?' Note from '+REPS[t.pic].name+': "'+text+'"':''}`, read:false, ticketId:t.id});
   showToast('Ticket marked Resolved — client notified');
+  render();
+}
+function repCloseTicket(id){
+  const t = TICKETS.find(x=>x.id===id);
+  t.status = 'Closed';
+  logAudit(t, 'Status changed to Closed', REPS[t.pic].name);
+  showToast('Ticket closed — hidden from the queue unless Status is set to "All"');
+  STATE.activeTicket = null;
   render();
 }
 const ALL_POSTING_ACCOUNTS = [...BANK_ACCOUNTS, ...CWT_ACCOUNTS, ...AR_ACCOUNTS];
@@ -3123,9 +3210,40 @@ function viewRepKPI(){
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-head"><h2>How you compare</h2><span class="hint">Anonymized — no other associate's name is shown</span></div>
+    <div class="card card-pad">
+      ${renderAnonymousComparison(rep, buckets)}
+    </div>
+    <div class="form-hint" style="margin-top:6px;">Other associates are shown as "Associate A," "Associate B," etc. — never by name.</div>
+  </div>
+
   <div class="card card-pad" style="font-size:12px;color:var(--text-faint);">
     Per the design's role-based access matrix (Section 15.1), Finance Reps see their own performance summary here. Team Leads see full team and per-associate reporting under <b>Reports &amp; KPIs</b>.
   </div>`;
+}
+function renderAnonymousComparison(rep, buckets){
+  const allReps = Object.values(REPS);
+  const others = allReps.filter(r=>r.id!==rep.id);
+  const myT = kpiTotals([rep.id], buckets);
+  const teamT = kpiTotals(allReps.map(r=>r.id), buckets);
+  const peerRows = others.map((r,i)=>({label:`Associate ${String.fromCharCode(65+i)}`, t:kpiTotals([r.id], buckets)}));
+  const cols = [
+    {label:'You', t:myT, highlight:true},
+    ...peerRows,
+    {label:'Team average', t:teamT, isAvg:true},
+  ];
+  const fmtPct = v => v!=null ? v+'%' : '—';
+  const fmtDays = v => v!=null ? v.toFixed(1) : '—';
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Metric</th>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
+    <tbody>
+      <tr><td class="row-title">Received</td>${cols.map(c=>`<td class="mono">${c.isAvg? Math.round(c.t.received/allReps.length) : c.t.received}</td>`).join('')}</tr>
+      <tr><td class="row-title">Resolved</td>${cols.map(c=>`<td class="mono">${c.isAvg? Math.round(c.t.resolved/allReps.length) : c.t.resolved}</td>`).join('')}</tr>
+      <tr><td class="row-title">Avg. resolution (days)</td>${cols.map(c=>`<td class="mono">${fmtDays(c.t.avgResDays)}</td>`).join('')}</tr>
+      <tr><td class="row-title">SLA compliance</td>${cols.map(c=>`<td>${c.t.slaCompliance!=null?`<span class="pill ${c.t.slaCompliance>=90?'pill-good':c.t.slaCompliance>=75?'pill-warning':'pill-critical'}">${fmtPct(c.t.slaCompliance)}</span>`:'<span class="pill pill-neutral">—</span>'}</td>`).join('')}</tr>
+    </tbody>
+  </table></div>`;
 }
 
 /* ============================================================
