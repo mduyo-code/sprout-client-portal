@@ -793,11 +793,15 @@ function repOpenCounts(rid){
 
 /* ---------------- App state ---------------- */
 const STATE = {
+  loggedIn:false, _loginTab:'client',
   role:'client', view:'dashboard',
   activeRep:'carlo', activeCsm:'jamie', activeTicket:null,
   bannerDismissed:false, notifOpen:false,
   kpi:{mode:'weekly', from:null, to:null, repFilter:'all'},
 };
+// Demo-only shared passcodes — a real build would use per-user credentials via NetSuite or SSO.
+const CLIENT_PASSCODE = 'sprout2026';
+const FINANCE_PASSCODE = 'finance2026';
 
 const NAV = {
   client:[{id:'dashboard',label:'Dashboard',icon:'⌂'},{id:'invoices',label:'Invoices',icon:'🧾'},{id:'requests',label:'Disputes & Requests',icon:'⚖️'},{id:'payments',label:'Payments & Collections',icon:'💳'},{id:'notifications',label:'Notifications',icon:'🔔'}],
@@ -939,6 +943,10 @@ function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
    ============================================================ */
 function render(){
   const app = document.getElementById('app');
+  if(!STATE.loggedIn){
+    app.innerHTML = renderLoginScreen();
+    return;
+  }
   app.innerHTML = `
     ${renderSidebar()}
     <div class="main-col">
@@ -947,6 +955,71 @@ function render(){
     </div>
   `;
   syncHash();
+}
+function renderLoginScreen(){
+  const tab = STATE._loginTab||'client';
+  return `
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+    <div class="card card-pad" style="width:380px;max-width:92vw;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <div class="brand-mark">🌱</div>
+        <div><div class="brand-name">Sprout Billings</div><div class="brand-sub">Portal Prototype</div></div>
+      </div>
+      <div class="seg" style="margin-bottom:16px;">
+        <button class="seg-btn ${tab==='client'?'active':''}" onclick="STATE._loginTab='client';render()">Client Login</button>
+        <button class="seg-btn ${tab==='finance'?'active':''}" onclick="STATE._loginTab='finance';render()">Finance Team Login</button>
+      </div>
+      ${tab==='client' ? `
+        <div class="form-field"><label>Client</label>
+          <select id="login-client-select">${Object.values(CLIENTS).map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-field"><label>Passcode</label><input type="password" id="login-client-pass" placeholder="Enter shared passcode" onkeydown="if(event.key==='Enter')attemptClientLogin()"></div>
+        <div id="login-client-error" style="color:var(--critical);font-size:12px;margin-bottom:8px;"></div>
+        <button class="btn btn-primary" style="width:100%;" onclick="attemptClientLogin()">Log in</button>
+      ` : `
+        <div class="form-field"><label>Name</label>
+          <select id="login-finance-select">
+            <optgroup label="Finance Reps">${Object.values(REPS).map(r=>`<option value="rep:${r.id}">${r.name}</option>`).join('')}</optgroup>
+            <optgroup label="Team Lead"><option value="lead:angela">${LEAD.name}</option></optgroup>
+            <optgroup label="CSM / Sales">${Object.values(CSMS).map(c=>`<option value="csm:${c.id}">${c.name} (${c.role})</option>`).join('')}</optgroup>
+          </select>
+        </div>
+        <div class="form-field"><label>Passcode</label><input type="password" id="login-finance-pass" placeholder="Enter shared passcode" onkeydown="if(event.key==='Enter')attemptFinanceLogin()"></div>
+        <div id="login-finance-error" style="color:var(--critical);font-size:12px;margin-bottom:8px;"></div>
+        <button class="btn btn-primary" style="width:100%;" onclick="attemptFinanceLogin()">Log in</button>
+      `}
+      <div class="form-hint" style="margin-top:14px;">Demo credentials — client passcode: <b>${CLIENT_PASSCODE}</b>, finance passcode: <b>${FINANCE_PASSCODE}</b>.</div>
+    </div>
+  </div>`;
+}
+function attemptClientLogin(){
+  const clientId = document.getElementById('login-client-select').value;
+  const pass = document.getElementById('login-client-pass').value;
+  const errEl = document.getElementById('login-client-error');
+  if(pass !== CLIENT_PASSCODE){ errEl.textContent = 'Incorrect passcode.'; return; }
+  CLIENT_USER.clientId = clientId;
+  CLIENT_USER.name = clientId==='meridian' ? 'Ana Lim' : 'Finance Contact';
+  STATE.loggedIn = true;
+  STATE.role = 'client';
+  STATE.view = NAV.client[0].id;
+  render();
+}
+function attemptFinanceLogin(){
+  const val = document.getElementById('login-finance-select').value;
+  const pass = document.getElementById('login-finance-pass').value;
+  const errEl = document.getElementById('login-finance-error');
+  if(pass !== FINANCE_PASSCODE){ errEl.textContent = 'Incorrect passcode.'; return; }
+  const [type, id] = val.split(':');
+  if(type==='rep'){ STATE.role='rep'; STATE.activeRep=id; STATE.view=NAV.rep[0].id; }
+  else if(type==='lead'){ STATE.role='lead'; STATE.view=NAV.lead[0].id; }
+  else if(type==='csm'){ STATE.role='csm'; STATE.activeCsm=id; STATE.view=NAV.csm[0].id; }
+  STATE.loggedIn = true;
+  render();
+}
+function logout(){
+  STATE.loggedIn = false;
+  STATE.activeTicket = null;
+  render();
 }
 
 function renderSidebar(){
@@ -960,13 +1033,6 @@ function renderSidebar(){
         <div class="brand-name">Sprout Billings</div>
         <div class="brand-sub">Portal Prototype</div>
       </div>
-    </div>
-    <div class="role-switch">
-      <div class="role-switch-label">View as</div>
-      ${['client','rep','lead','csm'].map(r=>`
-        <button class="role-btn ${STATE.role===r?'active':''}" onclick="setRole('${r}')">
-          <span class="dot"></span>${ROLE_META[r].label}
-        </button>`).join('')}
     </div>
     <div class="nav">
       <div class="nav-label">${ROLE_META[STATE.role].label}</div>
@@ -982,6 +1048,7 @@ function renderSidebar(){
       }).join('')}
     </div>
     <button class="btn btn-sm" style="margin:0 6px;justify-content:center;" onclick="openShareLinksModal()">🔗 Share access links</button>
+    <button class="btn btn-sm" style="margin:8px 6px 0;justify-content:center;" onclick="logout()">🚪 Log out</button>
     <div class="sidebar-footer">
       Based on <i>Sprout Client Portal — Billings &amp; Collections Module</i>, Draft v1.0.<br>
       Data shown is simulated for review purposes.
@@ -1002,16 +1069,7 @@ function renderTopbar(){
   const sub = typeof rm.sub==='function'?rm.sub():rm.sub;
   const initials = typeof rm.initials==='function'?rm.initials():rm.initials;
 
-  let switcher='';
-  if(STATE.role==='rep'){
-    switcher = `<select class="persona-select" style="font-size:12px;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:4px 6px;" onchange="STATE.activeRep=this.value;STATE.activeTicket=null;render()">
-      ${Object.values(REPS).map(r=>`<option value="${r.id}" ${STATE.activeRep===r.id?'selected':''}>${r.name}</option>`).join('')}
-    </select>`;
-  } else if(STATE.role==='csm'){
-    switcher = `<select class="persona-select" style="font-size:12px;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:4px 6px;" onchange="STATE.activeCsm=this.value;render()">
-      ${Object.values(CSMS).map(c=>`<option value="${c.id}" ${STATE.activeCsm===c.id?'selected':''}>${c.name} (${c.role})</option>`).join('')}
-    </select>`;
-  }
+  const switcher = '';
 
   return `
   <div class="topbar">
@@ -1173,7 +1231,7 @@ function viewClientInvoices(){
     <div class="section-head">
       <h2>Invoices</h2>
       <div style="display:flex;align-items:center;gap:12px;">
-        <span class="hint">${CLIENTS.meridian.name}</span>
+        <span class="hint">${CLIENTS[CLIENT_USER.clientId].name}</span>
         <button class="btn btn-sm" onclick="generateSOA()">📄 Generate SOA</button>
         <button class="btn btn-primary btn-sm" onclick="openProofOfPaymentModal()">💳 Upload Payment</button>
       </div>
